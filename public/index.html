@@ -8,8 +8,15 @@
 <body>
 <header>
   <b>Editor de mapas</b>
+  <span class="files">
+    <button id="btnNew" title="Crear un mapa vacío desde cero">Nuevo</button>
+    <button id="btnOpen" title="Abrir un mapa guardado como archivo (.dmap.json)">Abrir</button>
+    <button id="btnFile" title="Guardar el mapa actual como archivo para compartirlo">Guardar archivo</button>
+    <input type="file" id="fileInput" accept=".json" hidden>
+  </span>
   <span class="modes" id="modes">
     <button data-mode="view" class="on" title="Solo mirar">Ver</button>
+    <button data-mode="select" title="Clic sobre un sprite: ver a qué celda pertenece · Supr: eliminarlo · F: voltearlo">Seleccionar</button>
     <button data-mode="paint" title="Pintar tiles (clic: poner · clic derecho: quitar)">Decorado</button>
     <button data-mode="cells" title="Clic: caminable sí/no · Mayús+clic: línea de visión · Alt+clic: subir altura · Alt+clic derecho: bajar">Celdas</button>
     <button data-mode="fight" title="Clic: equipo rojo · Mayús+clic: equipo azul · clic derecho: quitar">Combate</button>
@@ -57,6 +64,14 @@
     <div id="npcPanel" class="panel" hidden>
       <input id="npcSearch" placeholder="Filtrar plantilla de NPC (id)">
       <div id="npcList"></div>
+    </div>
+    <div id="selPanel" class="panel" hidden>
+      <div id="selInfo"><p>Haz clic sobre cualquier sprite del mapa (suelo, decoración, árbol…). Se marca la celda a la que pertenece.</p></div>
+      <div class="row btns">
+        <button id="btnSelDel" disabled title="Supr">Eliminar sprite</button>
+        <button id="btnSelFlip" disabled title="F">Voltear</button>
+        <button id="btnSelPick" disabled title="Usar este tile para pintar">Usar para pintar</button>
+      </div>
     </div>
     <div id="infoPanel" class="panel">
       <p>Elige un mapa a la izquierda. La rueda hace zoom y arrastrar con el botón central (o espacio + arrastrar) mueve la vista.</p>

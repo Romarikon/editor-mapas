@@ -11,7 +11,12 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .layers label { margin-right: 8px; color: var(--soft); }
 #status { color: var(--soft); max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modes, .gen, .layers, header > b { flex-shrink: 0; }
-.gen { display: flex; align-items: center; gap: 4px; }
+.gen, .files { display: flex; align-items: center; gap: 4px; }
+.files { flex-shrink: 0; }
+.btns { gap: 6px; padding: 0 8px; flex-wrap: wrap; }
+#selInfo p, #selInfo table { margin: 10px 12px; color: var(--soft); }
+#selInfo td:first-child { color: var(--ink); padding-right: 10px; }
+#selInfo img { display: block; max-width: 70%; max-height: 140px; margin: 8px auto; background: #0d0c09; border-radius: 6px; }
 .gen input { width: 70px; margin: 0; }
 main { display: flex; height: calc(100% - 44px); }
 aside { width: 260px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
