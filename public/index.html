@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor de mapas</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header>
+  <b>Editor de mapas</b>
+  <span class="modes" id="modes">
+    <button data-mode="view" class="on" title="Solo mirar">Ver</button>
+    <button data-mode="paint" title="Pintar tiles (clic: poner · clic derecho: quitar)">Decorado</button>
+    <button data-mode="cells" title="Clic: caminable sí/no · Mayús+clic: línea de visión">Celdas</button>
+    <button data-mode="fight" title="Clic: equipo rojo · Mayús+clic: equipo azul · clic derecho: quitar">Combate</button>
+    <button data-mode="npc" title="Clic: colocar NPC · clic derecho: quitar">NPC</button>
+  </span>
+  <span class="layers">
+    <label><input type="checkbox" id="lyG" checked> Suelo</label>
+    <label><input type="checkbox" id="lyO1" checked> Objetos 1</label>
+    <label><input type="checkbox" id="lyO2" checked> Objetos 2</label>
+    <label><input type="checkbox" id="lyGrid"> Rejilla</label>
+  </span>
+  <span class="right">
+    <span id="status"></span>
+    <button id="btnSave" title="Guarda casillas de combate y NPC en la base (funciona ya en el juego)">Guardar en servidor</button>
+    <button id="btnExport" disabled title="Fase 3: exportar tiles/caminables al SWF del cliente">Exportar al cliente</button>
+  </span>
+</header>
+<main>
+  <aside id="left">
+    <input id="mapSearch" placeholder="Buscar mapa (id o mazmorra)">
+    <div id="mapList"></div>
+  </aside>
+  <section id="stage">
+    <canvas id="cv"></canvas>
+    <div id="hover"></div>
+  </section>
+  <aside id="right">
+    <div id="paintPanel" class="panel" hidden>
+      <div class="row">
+        <select id="paintLayer">
+          <option value="g">Suelo</option>
+          <option value="o1">Objeto 1</option>
+          <option value="o2">Objeto 2</option>
+        </select>
+        <label><input type="checkbox" id="paintFlip"> Voltear</label>
+      </div>
+      <input id="tileSearch" placeholder="Filtrar por número de tile">
+      <div id="palette"></div>
+    </div>
+    <div id="npcPanel" class="panel" hidden>
+      <input id="npcSearch" placeholder="Filtrar plantilla de NPC (id)">
+      <div id="npcList"></div>
+    </div>
+    <div id="infoPanel" class="panel">
+      <p>Elige un mapa a la izquierda. La rueda hace zoom y arrastrar con el botón central (o espacio + arrastrar) mueve la vista.</p>
+      <p><b>Qué se guarda hoy:</b> casillas de combate y NPC (los envía el servidor). Los tiles y las casillas caminables necesitan exportar el SWF del cliente (fase 3).</p>
+    </div>
+  </aside>
+</main>
+<script src="mapcodec.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>
