@@ -11,7 +11,7 @@
   <span class="modes" id="modes">
     <button data-mode="view" class="on" title="Solo mirar">Ver</button>
     <button data-mode="paint" title="Pintar tiles (clic: poner · clic derecho: quitar)">Decorado</button>
-    <button data-mode="cells" title="Clic: caminable sí/no · Mayús+clic: línea de visión">Celdas</button>
+    <button data-mode="cells" title="Clic: caminable sí/no · Mayús+clic: línea de visión · Alt+clic: subir altura · Alt+clic derecho: bajar">Celdas</button>
     <button data-mode="fight" title="Clic: equipo rojo · Mayús+clic: equipo azul · clic derecho: quitar">Combate</button>
     <button data-mode="npc" title="Clic: colocar NPC · clic derecho: quitar">NPC</button>
   </span>
@@ -20,6 +20,11 @@
     <label><input type="checkbox" id="lyO1" checked> Objetos 1</label>
     <label><input type="checkbox" id="lyO2" checked> Objetos 2</label>
     <label><input type="checkbox" id="lyGrid"> Rejilla</label>
+  </span>
+  <span class="gen">
+    <button id="btnGen" disabled title="Nueva variante: conserva muros y salidas, rehace el interior con lo aprendido de los mapas de la zona">Generar variante</button>
+    <input id="genSeed" type="number" value="1" title="Semilla (misma semilla = mismo resultado)">
+    <button id="btnGenNext" disabled title="Otra semilla">↻</button>
   </span>
   <span class="right">
     <span id="status"></span>
@@ -60,6 +65,7 @@
   </aside>
 </main>
 <script src="mapcodec.js"></script>
+<script src="generator.js"></script>
 <script src="editor.js"></script>
 </body>
 </html>

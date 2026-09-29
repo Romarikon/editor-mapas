@@ -13,9 +13,11 @@ async function getMap(id) {
   if (!m) return null;
   const plain = C.decryptMapData(m.mapData, m.key);
   const [npcs] = await db.query('SELECT npcid, cellid, orientation FROM npcs WHERE mapid = ?', [id]);
+  const [scripted] = await db.query('SELECT DISTINCT CellID AS cell FROM scripted_cells WHERE MapID = ?', [id]).catch(() => [[]]);
   const [[dg]] = await db.query('SELECT dungeon FROM dream_dungeon_maps WHERE map_id = ?', [id]).catch(() => [[null]]);
   return { id: m.id, width: m.width, height: m.height, date: m.date, bgID: m.bgID, outDoor: m.outDoor, encrypted: !!m.key,
-           dungeon: dg ? dg.dungeon : null, cells: C.decodeCells(plain), places: C.decodePlaces(m.places), npcs };
+           dungeon: dg ? dg.dungeon : null, cells: C.decodeCells(plain), places: C.decodePlaces(m.places), npcs,
+           scriptedCells: scripted.map(s => s.cell) };
 }
 
 /** Guarda casillas de combate y NPC (los envía el servidor: funcionan sin tocar el cliente). */
@@ -33,6 +35,27 @@ async function listMaps(q) {
   const args = q ? [q + '%', '%' + q + '%'] : [];
   const [rows] = await db.query(`SELECT m.id, m.width, m.heigth AS height, d.dungeon FROM maps m LEFT JOIN dream_dungeon_maps d ON d.map_id = m.id ${where} ORDER BY d.dungeon IS NULL, d.dungeon, m.id LIMIT 300`, args);
   return rows;
+}
+
+/** Mapas de la misma zona (mazmorra si la hay; si no, subzona de mappos), del mismo tamaño, para aprender de ellos. */
+async function zoneOf(id) {
+  const [[m]] = await db.query('SELECT id, width, heigth AS height, mappos FROM maps WHERE id = ?', [id]);
+  if (!m) return null;
+  const [[dg]] = await db.query('SELECT dungeon FROM dream_dungeon_maps WHERE map_id = ?', [id]).catch(() => [[null]]);
+  const subarea = (m.mappos || '').split(',')[2];
+  let rows, zone;
+  if (dg) {
+    zone = 'Mazmorra ' + dg.dungeon;
+    [rows] = await db.query('SELECT m.id, m.width, m.heigth AS height, m.`key`, m.mapData, m.places FROM maps m JOIN dream_dungeon_maps d ON d.map_id = m.id WHERE d.dungeon = ? AND m.width = ? AND m.heigth = ? LIMIT 80', [dg.dungeon, m.width, m.height]);
+  } else {
+    zone = 'Subzona ' + subarea;
+    [rows] = await db.query("SELECT id, width, heigth AS height, `key`, mapData, places FROM maps WHERE SUBSTRING_INDEX(mappos, ',', -1) = ? AND width = ? AND heigth = ? LIMIT 80", [subarea, m.width, m.height]);
+  }
+  const maps = rows.map(r => {
+    try { return { id: r.id, width: r.width, height: r.height, cells: C.decodeCells(C.decryptMapData(r.mapData, r.key)), places: C.decodePlaces(r.places) }; }
+    catch (e) { return null; }
+  }).filter(x => x && x.cells.length);
+  return { zone, maps };
 }
 
 async function npcTemplates() {
@@ -58,6 +81,7 @@ http.createServer(async (req, res) => {
     let m;
     if (p === '/api/maps') return send(res, 200, await listMaps(url.searchParams.get('q') || ''));
     if (p === '/api/npcs') return send(res, 200, await npcTemplates());
+    if ((m = p.match(/^\/api\/zone\/(\d+)$/))) { const z = await zoneOf(+m[1]); return z ? send(res, 200, z) : send(res, 404, { error: 'mapa no encontrado' }); }
     if ((m = p.match(/^\/api\/map\/(\d+)$/))) {
       if (req.method === 'GET') { const map = await getMap(+m[1]); return map ? send(res, 200, map) : send(res, 404, { error: 'mapa no encontrado' }); }
       if (req.method === 'POST') {

@@ -36,6 +36,10 @@
     S.places = [new Set(m.places[0]), new Set(m.places[1])];
     S.npcs = m.npcs.map(n => ({ npcid: n.npcid, cellid: n.cellid, orientation: n.orientation }));
     S.dirty = false;
+    S.original = { cells: m.cells.map(c => ({ ...c })), places: m.places };
+    S.generated = false; S.zone = null;
+    $('#btnGen').disabled = $('#btnGenNext').disabled = false;
+    $('#btnSave').disabled = false;
     document.querySelectorAll('.mapItem').forEach(e => e.classList.toggle('sel', +e.dataset.id === id));
     fit();
     status(`Mapa ${id} ${m.dungeon ? '· ' + m.dungeon : ''} · ${m.width}×${m.height} · ${S.places[0].size}/${S.places[1].size} casillas de combate · ${S.npcs.length} NPC`);
@@ -143,7 +147,9 @@
         break;
       }
       case 'cells':
-        if (e.shiftKey) c.lineOfSight = !c.lineOfSight; else c.movement = c.movement ? 0 : 4;
+        if (e.altKey) { c.groundLevel = Math.max(0, Math.min(15, c.groundLevel + (erase ? -1 : 1))); S.pos = C.cellPositions(S.cells, S.map.width); }
+        else if (e.shiftKey) c.lineOfSight = !c.lineOfSight;
+        else if (!erase) c.movement = c.movement ? 0 : 4;
         break;
       case 'fight':
         S.places[0].delete(i); S.places[1].delete(i);
@@ -197,8 +203,27 @@
   }
   function status(t) { $('#status').textContent = t; }
 
-  async function save() {
+  // ---------------------------------------------------------------- generación
+  async function generate() {
     if (!S.map) return;
+    if (!S.zone) {
+      status('Aprendiendo de los mapas de la zona…');
+      S.zone = await api('/api/zone/' + S.map.id);
+    }
+    if (!S.zone.maps.length) { status('No hay mapas de la misma zona y tamaño para aprender.'); return; }
+    const seed = +$('#genSeed').value || 1;
+    const template = { width: S.map.width, cells: S.original.cells, scriptedCells: S.map.scriptedCells, npcCells: S.npcs.map(n => n.cellid) };
+    const g = window.MapGenerator.generate(S.zone.maps, template, seed);
+    S.cells = g.cells; S.pos = C.cellPositions(S.cells, S.map.width);
+    S.places = [new Set(g.places[0]), new Set(g.places[1])];
+    S.generated = true; S.dirty = true;
+    $('#btnSave').disabled = true; // guardaría las casillas sobre el mapa original
+    render();
+    status(`Variante semilla ${seed} de ${S.map.id} · aprendido de ${g.stats.zoneMaps} mapas (${S.zone.zone}) · ${g.stats.obstacles} obstáculos · ${g.stats.exits} accesos protegidos. Exportar como mapa nuevo: fase 3.`);
+  }
+
+  async function save() {
+    if (!S.map || S.generated) return;
     const body = { places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs };
     await api('/api/map/' + S.map.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     S.dirty = false;
@@ -224,6 +249,8 @@
     document.querySelectorAll('.npcItem').forEach(x => x.classList.toggle('sel', x === t));
   });
   $('#btnSave').addEventListener('click', () => save().catch(err => status('Error al guardar: ' + err.message)));
+  $('#btnGen').addEventListener('click', () => generate().catch(err => status('Error al generar: ' + err.message)));
+  $('#btnGenNext').addEventListener('click', () => { $('#genSeed').value = (+$('#genSeed').value || 0) + 1; generate().catch(err => status('Error al generar: ' + err.message)); });
 
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('mousedown', e => {

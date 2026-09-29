@@ -10,6 +10,8 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .modes button { margin-right: 2px; }
 .layers label { margin-right: 8px; color: var(--soft); }
 #status { color: var(--soft); }
+.gen { display: flex; align-items: center; gap: 4px; }
+.gen input { width: 70px; margin: 0; }
 main { display: flex; height: calc(100% - 44px); }
 aside { width: 260px; background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow: hidden; }
 aside#right { border-right: 0; border-left: 1px solid var(--line); width: 300px; }
