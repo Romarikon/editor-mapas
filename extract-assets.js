@@ -5,7 +5,9 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 
 const [gfxDir, outDir] = process.argv.slice(2);
 if (!gfxDir || !outDir) { console.error('uso: node extract-assets.js <clips/gfx> <assets>'); process.exit(1); }
-const FFDEC = path.join(__dirname, '..', 'ffdec', 'ffdec-cli.jar');
+// FFDec (JPEXS) portable: variable FFDEC o, por defecto, ../ffdec/ffdec-cli.jar
+const FFDEC = process.env.FFDEC || path.join(__dirname, '..', 'ffdec', 'ffdec-cli.jar');
+if (!fs.existsSync(FFDEC)) { console.error('No encuentro FFDec en ' + FFDEC + ' (define la variable FFDEC con la ruta a ffdec-cli.jar)'); process.exit(1); }
 const tmp = path.join(outDir, '_tmp');
 const index = fs.existsSync(path.join(outDir, 'index.json')) ? JSON.parse(fs.readFileSync(path.join(outDir, 'index.json'))) : { g: {}, o: {} };
 

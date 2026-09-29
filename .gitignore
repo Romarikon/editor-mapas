@@ -1,0 +1,5 @@
+# Gráficos extraídos del cliente y volcados de la base: se regeneran y NO se publican
+assets/
+data/
+node_modules/
+*.log
