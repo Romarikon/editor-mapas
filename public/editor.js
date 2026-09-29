@@ -205,7 +205,7 @@
 
   // ---------------------------------------------------------------- generación
   async function generate() {
-    if (!S.map) return;
+    if (!S.map) { status("Carga primero un mapa de la lista de la izquierda."); return; }
     if (!S.zone) {
       status('Aprendiendo de los mapas de la zona…');
       S.zone = await api('/api/zone/' + S.map.id);

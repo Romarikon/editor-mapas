@@ -68,9 +68,10 @@ function send(res, code, data, type = 'application/json') {
   res.end(type === 'application/json' ? JSON.stringify(data) : data);
 }
 
-function serveStatic(res, file) {
+function serveStatic(res, file, cacheable = false) {
   if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return send(res, 404, { error: 'no existe' });
-  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'max-age=3600' });
+  // el código del editor nunca se cachea (cambia a menudo); los sprites sí
+  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': cacheable ? 'max-age=86400' : 'no-cache' });
   fs.createReadStream(file).pipe(res);
 }
 
@@ -89,7 +90,7 @@ http.createServer(async (req, res) => {
         return send(res, 200, await saveServerSide(+m[1], JSON.parse(body)));
       }
     }
-    if (p.startsWith('/assets/')) return serveStatic(res, path.join(__dirname, 'assets', path.normalize(p.slice(8))));
+    if (p.startsWith('/assets/')) return serveStatic(res, path.join(__dirname, 'assets', path.normalize(p.slice(8))), !p.endsWith('index.json'));
     return serveStatic(res, path.join(__dirname, 'public', p === '/' ? 'index.html' : path.normalize(p)));
   } catch (e) {
     console.error(e);

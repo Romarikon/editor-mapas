@@ -9,7 +9,8 @@ button.on { background: var(--accent); color: #1b1206; border-color: var(--accen
 button:disabled { opacity: .45; cursor: not-allowed; }
 .modes button { margin-right: 2px; }
 .layers label { margin-right: 8px; color: var(--soft); }
-#status { color: var(--soft); }
+#status { color: var(--soft); max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modes, .gen, .layers, header > b { flex-shrink: 0; }
 .gen { display: flex; align-items: center; gap: 4px; }
 .gen input { width: 70px; margin: 0; }
 main { display: flex; height: calc(100% - 44px); }
