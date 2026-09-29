@@ -4,7 +4,11 @@
 const http = require('http'), fs = require('fs'), path = require('path');
 const C = require('./public/mapcodec.js');
 
+const X = require('./swfmap.js');
 const PORT = +process.env.PORT || 4600;
+// carpeta data/maps del cliente donde se escriben los SWF exportados
+const CLIENT_MAPS = process.env.CLIENT_MAPS || 'F:/Dofus_Dual/clients/Retro-1.43.7/resources/app/retroclient/data/maps';
+const NEW_MAP_MIN = 30000, NEW_MAP_MAX = 32767; // rango propio para mapas nuevos (el servidor usa short)
 const PACK = path.join(__dirname, 'data', 'maps-pack.json');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
@@ -37,6 +41,7 @@ function packSource() {
     },
     async npcTemplates() { return pack.npcTemplates; },
     async saveServerSide() { throw new Error('Modo sin conexión: guarda el mapa como archivo y pásaselo a quien tenga el servidor.'); },
+    async exportMap() { throw new Error('Modo sin conexión: guarda el mapa como archivo; la exportación al juego se hace en el PC del servidor.'); },
   };
 }
 
@@ -49,12 +54,52 @@ function dbSource(db) {
       return rows;
     },
     async getMap(id) {
-      const [[m]] = await db.query('SELECT id, width, heigth AS height, `key`, mapData, places, date FROM maps WHERE id = ?', [id]);
+      const [[m]] = await db.query('SELECT id, width, heigth AS height, `key`, mapData, places, date, mappos, bgID, musicID, ambianceID, outDoor, capabilities FROM maps WHERE id = ?', [id]);
       if (!m) return null;
+      m.meta = { mappos: m.mappos, bgID: m.bgID, musicID: m.musicID, ambianceID: m.ambianceID, outDoor: m.outDoor, capabilities: m.capabilities };
       const [npcs] = await db.query('SELECT npcid, cellid, orientation FROM npcs WHERE mapid = ?', [id]);
       const [scripted] = await db.query('SELECT DISTINCT CellID AS cell FROM scripted_cells WHERE MapID = ?', [id]).catch(() => [[]]);
       const [[dg]] = await db.query('SELECT dungeon FROM dream_dungeon_maps WHERE map_id = ?', [id]).catch(() => [[null]]);
-      return { ...decodeRow(m), date: m.date, dungeon: dg ? dg.dungeon : null, npcs, scriptedCells: scripted.map(s => s.cell) };
+      return { ...decodeRow(m), date: m.date, meta: m.meta, dungeon: dg ? dg.dungeon : null, npcs, scriptedCells: scripted.map(s => s.cell) };
+    },
+    /**
+     * Exporta al juego: SWF del mapa (sin cifrar) en la carpeta del cliente + fila de la base (mapData, clave vacía,
+     * fecha nueva, casillas de combate, metadatos) + NPC. id null = mapa nuevo en el rango 30000+.
+     * Verifica leyendo el SWF escrito antes de tocar la base.
+     */
+    async exportMap(body) {
+      const cells = body.cells, w = body.width, h = body.height;
+      if (!Array.isArray(cells) || cells.length !== w * h + (w - 1) * (h - 1)) throw new Error('número de celdas incorrecto para ' + w + 'x' + h);
+      const meta = body.meta || {};
+      let id = body.id, isNew = !id;
+      if (isNew) {
+        const [[r]] = await db.query('SELECT MAX(id) AS m FROM maps WHERE id BETWEEN ? AND ?', [NEW_MAP_MIN, NEW_MAP_MAX]);
+        id = r.m ? r.m + 1 : NEW_MAP_MIN;
+        if (id > NEW_MAP_MAX) throw new Error('no quedan ids libres para mapas nuevos');
+      }
+      const date = X.mapDate();
+      const mapData = C.encodeCells(cells);
+      const places = C.encodePlaces(body.places[0] || [], body.places[1] || []);
+      const files = fs.readdirSync(CLIENT_MAPS).filter(f => /^\d+_\d+X?\.swf$/.test(f));
+      const template = path.join(CLIENT_MAPS, files.find(f => f.startsWith(id + '_')) || files[0]);
+      const swf = X.buildMapSwf(template, { id, width: w, height: h, backgroundNum: meta.bgID | 0, ambianceId: meta.ambianceID | 0,
+        musicId: meta.musicID | 0, outdoor: !!+meta.outDoor, capabilities: meta.capabilities | 0, mapData });
+      const file = path.join(CLIENT_MAPS, `${id}_${date}.swf`);
+      fs.writeFileSync(file, swf);
+      const back = X.readMapSwf(file);
+      if (back.mapData !== mapData || back.id !== id) { fs.rmSync(file, { force: true }); throw new Error('verificación del SWF fallida; no se ha tocado la base'); }
+
+      if (isNew) {
+        await db.query('INSERT INTO maps (id, date, width, heigth, places, `key`, mapData, monsters, capabilities, mappos, numgroup, minSize, fixSize, maxSize, forbidden, sniffed, musicID, ambianceID, bgID, outDoor, maxMerchant) VALUES (?, ?, ?, ?, ?, \'\', ?, \'\', ?, ?, 0, 1, -1, 8, \'\', 0, ?, ?, ?, ?, 5)',
+          [id, date, w, h, places, mapData, meta.capabilities | 0, meta.mappos || '0,0,0', meta.musicID | 0, meta.ambianceID | 0, meta.bgID | 0, +meta.outDoor ? 1 : 0]);
+      } else {
+        await db.query('UPDATE maps SET date = ?, width = ?, heigth = ?, places = ?, `key` = \'\', mapData = ?, capabilities = ?, mappos = COALESCE(?, mappos), musicID = ?, ambianceID = ?, bgID = ?, outDoor = ? WHERE id = ?',
+          [date, w, h, places, mapData, meta.capabilities | 0, meta.mappos || null, meta.musicID | 0, meta.ambianceID | 0, meta.bgID | 0, +meta.outDoor ? 1 : 0, id]);
+      }
+      await db.query('DELETE FROM npcs WHERE mapid = ?', [id]);
+      for (const n of body.npcs || [])
+        await db.query('INSERT INTO npcs (mapid, npcid, cellid, orientation, isMovable) VALUES (?, ?, ?, ?, 0)', [id, n.npcid, n.cellid, n.orientation | 0]);
+      return { ok: true, id, date, isNew, file: path.basename(file), reload: 'RECARGARMAPA ' + id };
     },
     async zoneOf(id) {
       const [[m]] = await db.query('SELECT id, width, heigth AS height, mappos FROM maps WHERE id = ?', [id]);
@@ -116,6 +161,10 @@ openSource().then(src => {
       const p = decodeURIComponent(url.pathname);
       let m;
       if (p === '/api/info') return send(res, 200, { offline: src.offline });
+      if (p === '/api/export' && req.method === 'POST') {
+        let body = ''; for await (const chunk of req) body += chunk;
+        return send(res, 200, await src.exportMap(JSON.parse(body)));
+      }
       if (p === '/api/maps') return send(res, 200, await src.listMaps(url.searchParams.get('q') || ''));
       if (p === '/api/npcs') return send(res, 200, await src.npcTemplates());
       if ((m = p.match(/^\/api\/zone\/(\d+)$/))) { const z = await src.zoneOf(+m[1]); return z ? send(res, 200, z) : send(res, 404, { error: 'mapa no encontrado' }); }

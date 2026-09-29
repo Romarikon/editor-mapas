@@ -41,7 +41,7 @@ function copyDir(src, dst) {
   console.log('Armando', DIST);
   fs.rmSync(DIST, { recursive: true, force: true });
   for (const d of ['public', 'data', 'assets']) copyDir(path.join(__dirname, d), path.join(DIST, d));
-  fs.copyFileSync(path.join(__dirname, 'server.js'), path.join(DIST, 'server.js'));
+  for (const f of ['server.js', 'swfmap.js']) fs.copyFileSync(path.join(__dirname, f), path.join(DIST, f));
   fs.copyFileSync(process.execPath, path.join(DIST, 'node.exe'));
   fs.writeFileSync(path.join(DIST, 'Abrir editor.bat'),
     '@echo off\r\ncd /d "%~dp0"\r\nset OFFLINE=1\r\nstart "Editor de mapas (no cerrar)" node.exe server.js\r\ntimeout /t 2 /nobreak >nul\r\nstart "" http://localhost:4600\r\n');

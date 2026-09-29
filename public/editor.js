@@ -41,6 +41,8 @@
     S.original = { cells: m.cells.map(c => ({ ...c })), places: m.places };
     S.generated = !fromServer; S.zone = null;
     $('#btnSave').disabled = !fromServer || !S.online;
+    $('#btnExport').disabled = !S.online;
+    fillMeta(m.meta || { mappos: '0,0,0', bgID: 0, musicID: 0, ambianceID: 0, outDoor: 1, capabilities: 0 });
     document.querySelectorAll('.mapItem').forEach(e => e.classList.toggle('sel', +e.dataset.id === m.id));
     fit();
   }
@@ -50,6 +52,90 @@
     const m = await api('/api/map/' + id);
     useMap(m, true);
     status(`Mapa ${id} ${m.dungeon ? '· ' + m.dungeon : ''} · ${m.width}×${m.height} · ${S.places[0].size}/${S.places[1].size} casillas de combate · ${S.npcs.length} NPC`);
+  }
+
+  // ---------------------------------------------------------------- datos del mapa
+  function fillMeta(meta) {
+    const f = $('#metaForm'), [x = 0, y = 0, sub = 0] = String(meta.mappos || '0,0,0').split(',');
+    f.posX.value = x; f.posY.value = y; f.subarea.value = sub;
+    f.bgID.value = meta.bgID | 0; f.musicID.value = meta.musicID | 0; f.ambianceID.value = meta.ambianceID | 0;
+    f.capabilities.value = meta.capabilities | 0; f.outDoor.checked = !!+meta.outDoor;
+    f.hidden = false;
+  }
+  function readMeta() {
+    const f = $('#metaForm');
+    return { mappos: `${f.posX.value | 0},${f.posY.value | 0},${f.subarea.value | 0}`, bgID: f.bgID.value | 0, musicID: f.musicID.value | 0,
+             ambianceID: f.ambianceID.value | 0, capabilities: f.capabilities.value | 0, outDoor: f.outDoor.checked ? 1 : 0 };
+  }
+
+  // ---------------------------------------------------------------- validación
+  function validate() {
+    const R = { err: [], warn: [], ok: [] }, w = S.map.width, n = S.cells.length, cells = S.cells;
+    if (n !== w * S.map.height + (w - 1) * (S.map.height - 1)) R.err.push(`Número de celdas incorrecto (${n}) para ${w}×${S.map.height}.`);
+    const neigh = i => [i - w, i - w + 1, i + w - 1, i + w].filter(j => j >= 0 && j < n);
+    // zonas caminables
+    const seen = new Uint8Array(n), comps = [];
+    cells.forEach((c, s) => {
+      if (seen[s] || !c.active || !c.movement) return;
+      let size = 0; const st = [s]; seen[s] = 1;
+      while (st.length) { const i = st.pop(); size++; for (const j of neigh(i)) if (!seen[j] && cells[j].active && cells[j].movement) { seen[j] = 1; st.push(j); } }
+      comps.push(size);
+    });
+    comps.sort((a, b) => b - a);
+    if (!comps.length) R.err.push('No hay ninguna celda caminable.');
+    else if (comps.length > 1) R.warn.push(`Hay ${comps.length} zonas caminables separadas (${comps.join(', ')} celdas): algunas no se podrán alcanzar.`);
+    else R.ok.push(`Todas las celdas caminables están conectadas (${comps[0]}).`);
+    // casillas de combate
+    for (const t of [0, 1]) {
+      const list = [...S.places[t]], bad = list.filter(i => !cells[i] || !cells[i].movement);
+      const name = t ? 'azul' : 'rojo';
+      if (!list.length) R.warn.push(`El equipo ${name} no tiene casillas de combate (no se podrá combatir aquí).`);
+      else if (list.length < 8) R.warn.push(`El equipo ${name} solo tiene ${list.length} casillas (lo normal son 8).`);
+      if (bad.length) R.err.push(`${bad.length} casilla(s) de combate del equipo ${name} están en celdas bloqueadas.`);
+    }
+    // salidas y NPC
+    const blockedExits = (S.map.scriptedCells || []).filter(i => cells[i] && !cells[i].movement);
+    if (blockedExits.length) R.err.push(`${blockedExits.length} celda(s) con acción (salidas, teletransportes) están bloqueadas: ${blockedExits.join(', ')}.`);
+    const npcBad = S.npcs.filter(p => !cells[p.cellid] || !cells[p.cellid].active);
+    if (npcBad.length) R.warn.push(`${npcBad.length} NPC en celdas inactivas.`);
+    // sprites inexistentes
+    const miss = new Set();
+    cells.forEach(c => {
+      if (!c.active) return;
+      if (c.layerGroundNum && !S.index.g[c.layerGroundNum]) miss.add('suelo ' + c.layerGroundNum);
+      for (const o of [c.layerObject1Num, c.layerObject2Num]) if (o && !S.index.o[o]) miss.add('objeto ' + o);
+    });
+    if (miss.size) R.warn.push(`Tiles sin sprite (saldrán vacíos): ${[...miss].slice(0, 10).join(', ')}${miss.size > 10 ? '…' : ''}.`);
+    const seeThrough = cells.filter(c => c.active && !c.movement && c.layerObject2Num && c.lineOfSight).length;
+    if (seeThrough) R.ok.push(`${seeThrough} obstáculo(s) dejan ver a través (correcto para objetos bajos; revisa si alguno debería tapar la visión).`);
+    return R;
+  }
+
+  // ---------------------------------------------------------------- exportar al juego
+  function openExport() {
+    if (!S.map) { status('No hay ningún mapa abierto.'); return; }
+    const R = validate();
+    const li = (cls, arr) => arr.map(t => `<li class="${cls}">${t}</li>`).join('');
+    $('#exportReport').innerHTML = `<ul>${li('err', R.err)}${li('warn', R.warn)}${li('ok', R.ok)}</ul>`
+      + (R.err.length ? '<p class="err">Corrige los errores antes de exportar.</p>'
+        : '<p>Se escribirá el SWF del mapa en la carpeta del cliente y la fila en la base. Luego, en el juego: <code>RECARGARMAPA id</code>.</p>');
+    const canOverwrite = !!S.map.id;
+    $('#expOverwrite').hidden = !canOverwrite; $('#expId').textContent = S.map.id || '';
+    $('#expOverwrite').disabled = $('#expNew').disabled = R.err.length > 0;
+    $('#exportDlg').showModal();
+  }
+
+  async function doExport(asNew) {
+    $('#exportDlg').close();
+    status('Exportando…');
+    const body = { id: asNew ? null : S.map.id, width: S.map.width, height: S.map.height, cells: S.cells,
+                   places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs, meta: readMeta() };
+    const r = await api('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    S.map.id = r.id; S.map.date = r.date; S.map.meta = body.meta;
+    S.generated = false; S.dirty = false; $('#btnSave').disabled = false;
+    await loadMapList($('#mapSearch').value.trim());
+    status(`${r.isNew ? 'Mapa nuevo ' + r.id + ' creado' : 'Mapa ' + r.id + ' actualizado'} (${r.file}). En el juego: ${r.reload}`);
+    alert(`${r.isNew ? 'Creado el mapa nuevo ' + r.id : 'Actualizado el mapa ' + r.id}.\n\nFichero del cliente: ${r.file}\n\nPara verlo sin reiniciar, en la consola de administración:\n${r.reload}${r.isNew ? '\n\nPara ir a él: TP ' + r.id + ' <celda>' : ''}`);
   }
 
   // ---------------------------------------------------------------- mapa nuevo y archivos
@@ -75,7 +161,7 @@
     const name = prompt('Nombre del mapa:', S.map.name || (S.map.id ? 'mapa_' + S.map.id : 'nuevo_mapa'));
     if (!name) return;
     const file = { format: 'dofus-map/1', name, width: S.map.width, height: S.map.height, basedOn: S.map.id || null,
-      mapData: C.encodeCells(S.cells), places: C.encodePlaces([...S.places[0]], [...S.places[1]]), npcs: S.npcs,
+      mapData: C.encodeCells(S.cells), places: C.encodePlaces([...S.places[0]], [...S.places[1]]), npcs: S.npcs, meta: readMeta(),
       savedAt: new Date().toISOString() };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' }));
@@ -90,7 +176,7 @@
     const j = JSON.parse(await f.text());
     if (j.format !== 'dofus-map/1') { alert('No es un archivo de mapa de este editor.'); return; }
     useMap({ id: null, name: j.name, width: j.width, height: j.height, cells: C.decodeCells(j.mapData),
-             places: C.decodePlaces(j.places), npcs: j.npcs || [], scriptedCells: [], basedOn: j.basedOn }, false);
+             places: C.decodePlaces(j.places), npcs: j.npcs || [], scriptedCells: [], basedOn: j.basedOn, meta: j.meta }, false);
     S.dirty = false;
     status(`Abierto "${j.name}" (${j.width}×${j.height})${j.basedOn ? ', basado en el mapa ' + j.basedOn : ''}.`);
   }
@@ -432,6 +518,11 @@
     status(`Pintando con el tile ${S.tile.num} (${LAYER_NAMES[S.sel.layer]})`);
   });
   $('#btnNew').addEventListener('click', newMap);
+  $('#btnExport').addEventListener('click', openExport);
+  $('#expOverwrite').addEventListener('click', () => doExport(false).catch(err => status('Error al exportar: ' + err.message)));
+  $('#expNew').addEventListener('click', () => doExport(true).catch(err => status('Error al exportar: ' + err.message)));
+  $('#expCancel').addEventListener('click', () => $('#exportDlg').close());
+  $('#metaForm').addEventListener('input', () => { S.dirty = true; });
   $('#btnFile').addEventListener('click', saveFile);
   $('#btnOpen').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) openFile(f).catch(err => status('Error al abrir: ' + err.message)); });

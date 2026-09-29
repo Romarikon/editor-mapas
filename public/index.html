@@ -36,7 +36,7 @@
   <span class="right">
     <span id="status"></span>
     <button id="btnSave" title="Guarda casillas de combate y NPC en la base (funciona ya en el juego)">Guardar en servidor</button>
-    <button id="btnExport" disabled title="Fase 3: exportar tiles/caminables al SWF del cliente">Exportar al cliente</button>
+    <button id="btnExport" disabled title="Escribe el mapa en el juego: SWF del cliente + base de datos (validando antes)">Exportar al juego</button>
   </span>
 </header>
 <main>
@@ -74,11 +74,30 @@
       </div>
     </div>
     <div id="infoPanel" class="panel">
-      <p>Elige un mapa a la izquierda. La rueda hace zoom y arrastrar con el botón central (o espacio + arrastrar) mueve la vista.</p>
-      <p><b>Qué se guarda hoy:</b> casillas de combate y NPC (los envía el servidor). Los tiles y las casillas caminables necesitan exportar el SWF del cliente (fase 3).</p>
+      <form id="metaForm" hidden>
+        <h4>Datos del mapa</h4>
+        <label>Posición en el mundo (x, y)<span class="row"><input name="posX" type="number"><input name="posY" type="number"></span></label>
+        <label>Subzona<input name="subarea" type="number"></label>
+        <label>Fondo (bgID)<input name="bgID" type="number"></label>
+        <label>Música (musicID)<input name="musicID" type="number"></label>
+        <label>Ambiente (ambianceID)<input name="ambianceID" type="number"></label>
+        <label>Capacidades<input name="capabilities" type="number" title="Máscara de permisos del mapa (atacar, desafiar, recaudadores...). Copia la de un mapa parecido."></label>
+        <label class="check"><input name="outDoor" type="checkbox"> Exterior</label>
+      </form>
+      <p>La rueda hace zoom; arrastrar con el botón central (o espacio + arrastrar) mueve la vista.</p>
+      <p><b>Exportar al juego</b> escribe el SWF del mapa en el cliente y la fila en la base. Después, en el juego: <code>RECARGARMAPA id</code> (consola admin) para verlo sin reiniciar.</p>
     </div>
   </aside>
 </main>
+<dialog id="exportDlg">
+  <h3>Exportar al juego</h3>
+  <div id="exportReport"></div>
+  <div class="row btns">
+    <button id="expOverwrite">Sobrescribir el mapa <span id="expId"></span></button>
+    <button id="expNew">Guardar como mapa nuevo</button>
+    <button id="expCancel">Cancelar</button>
+  </div>
+</dialog>
 <script src="mapcodec.js"></script>
 <script src="generator.js"></script>
 <script src="editor.js"></script>
