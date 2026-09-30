@@ -649,10 +649,10 @@
   // ---------------------------------------------------------------- paneles
   const CATS = {
     g: [['all', 'Todos los suelos'], ['zone', 'En esta zona'], ['fav', '★ Favoritos'], ['recent', 'Recientes'],
-        ['walkable', 'Caminables'], ['blocked', 'De zonas bloqueadas'], ['background', 'Fondos'], ['unused', 'Sin usar']],
+        ['walkable', 'Caminables'], ['blocked', 'De zonas bloqueadas'], ['background', 'Fondos'], ['dark', 'Oscuros (podridos)'], ['unused', 'Sin usar']],
     o: [['all', 'Todos los objetos'], ['zone', 'En esta zona'], ['fav', '★ Favoritos'], ['recent', 'Recientes'],
         ['floor', 'Decorado de suelo'], ['deco', 'Decorativos (no bloquean)'], ['obstacle', 'Obstáculos'],
-        ['wall', 'Muros (tapan visión)'], ['tall', 'Árboles y altos'], ['unused', 'Sin usar']],
+        ['wall', 'Muros (tapan visión)'], ['tall', 'Árboles y altos'], ['dark', 'Oscuros (podridos)'], ['unused', 'Sin usar']],
   };
   function fillCategories() {
     const kind = $('#paintLayer').value === 'g' ? 'g' : 'o', sel = $('#paletteCat'), prev = sel.value;
@@ -690,7 +690,7 @@
     } else if (group) nums = group.items.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
     else if (cat === 'recent') nums = rec.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
     else {
-      nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (stats[n] || {}).cat === cat);
+      nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (cat === 'dark' ? S.index[kind][n].darkOf : (stats[n] || {}).cat === cat && !S.index[kind][n].darkOf));
       nums.sort((a, b) => ((stats[b] || {}).n || 0) - ((stats[a] || {}).n || 0) || a - b); // lo más usado primero
     }
     if (q) nums = /^\d+$/.test(q) ? nums.filter(n => n.startsWith(q)) : nums.filter(n => (tagOf(kind, n).t || []).some(t => t.includes(q.toLowerCase())) || (tagOf(kind, n).r || []).includes(q.toLowerCase()));
@@ -727,7 +727,9 @@
     if (!S.map) { status('Carga primero un mapa.'); return; }
     if (!S.themes) S.themes = await api('/api/themes');
     const sel = $('#dreamTheme');
-    if (!sel.options.length) sel.innerHTML = '<option value="auto">Automático (al azar según la semilla)</option>' + S.themes.map(t => `<option value="${t.key}">${t.name}</option>`).join('');
+    if (!sel.options.length) sel.innerHTML = '<option value="auto">Automático (al azar según la semilla)</option>' + S.themes.map(t => `<option value="${t.key}">${t.name}</option>`).join('') + '<option value="none">Solo oscurecer (el mismo mapa, podrido)</option>';
+    if (!S.dark) S.dark = await api('/assets/dark.json').catch(() => null);
+    $('#dreamRot').disabled = !S.dark; if (!S.dark) $('#dreamRot').checked = false;
     updateDreamHint();
     $('#dreamDlg').showModal();
   }
@@ -741,15 +743,19 @@
     let theme = $('#dreamTheme').value;
     if (theme === 'auto') theme = S.themes[seed % S.themes.length].key;
     S.themeCache = S.themeCache || {};
+    if (theme === 'none') S.themeCache['none'] = { name: 'solo oscurecer', maps: [] };
     const ck = theme + ':' + S.map.width + 'x' + S.map.height;
+    if (theme === 'none') S.themeCache[ck] = S.themeCache['none'];
     if (!S.themeCache[ck]) { status('Aprendiendo el tema oscuro…'); S.themeCache[ck] = await api(`/api/theme/${theme}?w=${S.map.width}&h=${S.map.height}`); }
     const th = S.themeCache[ck];
-    if (!th.maps.length) { status(`El tema «${th.name}» no tiene mapas de ${S.map.width}×${S.map.height}.`); return; }
+    if (!th.maps.length && theme !== 'none') { status(`El tema «${th.name}» no tiene mapas de ${S.map.width}×${S.map.height}.`); return; }
+    if (theme === 'none' && !$('#dreamRot').checked) { status('«Solo oscurecer» necesita los tiles podridos activados.'); return; }
     if (!again) S.preDream = snapshot(); else if (S.preDream) restore(S.preDream);
     pushHistory();
     const protect = [...new Set([...(S.map.scriptedCells || []), ...S.exits.map(e => e.cell), ...S.npcs.map(p => p.cellid)])];
     const allBackgrounds = Object.entries((S.stats && S.stats.g) || {}).filter(([, v]) => v.cat === 'background').map(([id]) => +id);
-    const opts = { seed, stats: S.stats || { g: {}, o: {} }, index: S.index, tags: S.tags || { o: {}, g: {} }, protect, intensity: +$('#dreamIntensity').value, allBackgrounds };
+    const opts = { seed, stats: S.stats || { g: {}, o: {} }, index: S.index, tags: S.tags || { o: {}, g: {} }, protect,
+      dark: $('#dreamRot').checked ? S.dark : null, bgID: +$('#metaForm').bgID.value, intensity: +$('#dreamIntensity').value, allBackgrounds };
     const tpl = { width: S.map.width, cells: S.cells };
     const out = kind === 'fever' ? window.MapGenerator.fever(tpl, th.maps, opts) : window.MapGenerator.nightmare(tpl, th.maps, opts);
     S.cells = out.cells; S.pos = C.cellPositions(S.cells, S.map.width);
@@ -759,7 +765,7 @@
     const st = out.stats;
     status(kind === 'fever'
       ? `Sueño febril (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.strange} objetos fuera de lugar, ${st.ghosts} fantasmas, ${st.rotated} suelos girados, ${st.raised} celdas de terreno roto, ${st.mirrored} en espejo${st.scenes && st.scenes.length ? ', escenas: ' + st.scenes.join(', ') : ''}${st.carved ? ', ' + st.carved + ' abiertas para unir zonas' : ''}.`
-      : `Pesadilla (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.thinned} decoraciones quitadas, ${st.debris} restos añadidos (aprendido de ${st.themeMaps} mapas).`);
+      : `Pesadilla (${th.name}, semilla ${seed}): ${st.rotten ? st.rotten + ' tiles podridos, ' : ''}${st.swapped} tiles cambiados, ${st.thinned} decoraciones quitadas, ${st.debris} restos añadidos (aprendido de ${st.themeMaps} mapas).`);
   }
 
   // ---------------------------------------------------------------- generación

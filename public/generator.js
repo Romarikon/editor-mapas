@@ -308,11 +308,15 @@
     const r = rng(opts.seed), w = template.width, n = template.cells.length;
     const cells = template.cells.map(c => ({ ...c }));
     const pal = themePalette(themeMaps), map = makeMapper(pal, opts.stats, opts.index, r, opts.tags);
-    let swapped = 0, thinned = 0, debris = 0;
-    for (const c of cells) {
+    let swapped = 0, thinned = 0, debris = 0, rotten = 0;
+    if (themeMaps.length) for (const c of cells) {
       if (!c.active) continue;
       for (const [f, kind] of LAYERS) { const nv = map(kind, c[f]); if (nv !== c[f]) { c[f] = nv; swapped++; } }
     }
+    // tiles podridos: cada tile pasa a su versión oscura (dark-variants.js) si existe
+    const darkOf = (kind, id) => (opts.dark && opts.dark[kind] && opts.dark[kind][id]) || id;
+    const rot = () => { if (!opts.dark) return; for (const c of cells) { if (!c.active) continue; for (const [f, kind] of LAYERS) { const nv = darkOf(kind, c[f]); if (nv !== c[f]) { c[f] = nv; rotten++; } } } };
+    if (!themeMaps.length) { rot(); return { cells, bgID: opts.dark && opts.dark.g && opts.bgID ? darkOf('g', opts.bgID) : 0, stats: { swapped, thinned, debris, rotten, themeMaps: 0 } }; }
     // menos vida: se quita parte del decorado de suelo y se siembran restos del tema (huesos, escombros…)
     const protect = new Set(opts.protect || []);
     for (let i = 0; i < n; i++) {
@@ -323,8 +327,9 @@
         c.layerObject1Num = pick(r, pal.floorDeco); c.layerObject1Flip = r() < 0.5; debris++;
       }
     }
-    const bg = pal.bg.size ? pick(r, pal.bg) : 0;
-    return { cells, bgID: bg, stats: { swapped, thinned, debris, themeMaps: themeMaps.length } };
+    let bg = pal.bg.size ? pick(r, pal.bg) : 0;
+    rot(); if (bg) bg = darkOf('g', bg);
+    return { cells, bgID: bg, stats: { swapped, thinned, debris, rotten, themeMaps: themeMaps.length } };
   }
 
   function fever(template, themeMaps, opts) {

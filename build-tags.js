@@ -15,6 +15,13 @@ for (const line of fs.readFileSync(path.join(__dirname, 'tags-manual.txt'), 'utf
   const tags = m[3].split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
   out[m[1]][m[2]] = { t: tags, r: roles(tags) };
 }
+// versiones oscuras: heredan las etiquetas del original + "oscuro, podrido"
+const index = JSON.parse(fs.readFileSync(path.join(__dirname, 'assets', 'index.json')));
+for (const kind of ['o', 'g']) for (const [id, meta] of Object.entries(index[kind])) {
+  if (!meta.darkOf || out[kind][id]) continue;
+  const base = out[kind][meta.darkOf];
+  if (base && !base.auto) { const t = [...base.t, 'oscuro', 'podrido']; out[kind][id] = { t, r: roles(t) }; }
+}
 let auto = 0;
 for (const kind of ['o', 'g'])
   for (const [id, s] of Object.entries(st[kind])) {

@@ -39,8 +39,9 @@ function catGround(id, s) {
 }
 
 const out = { generatedAt: new Date().toISOString(), g: {}, o: {} };
-for (const id of Object.keys(index.g)) { const s = g[id]; out.g[id] = { n: s ? s.n : 0, cat: catGround(id, s) }; }
-for (const id of Object.keys(index.o)) { const s = o[id]; out.o[id] = { n: s ? s.n : 0, cat: catObject(id, s) }; }
+const darkOrig = (kind, id) => (index[kind][id] || {}).darkOf;
+for (const id of Object.keys(index.g)) { const src = darkOrig('g', id) || id, s = g[src]; out.g[id] = { n: s ? s.n : 0, cat: catGround(src, s), ...(darkOrig('g', id) ? { dark: true } : {}) }; }
+for (const id of Object.keys(index.o)) { const src = darkOrig('o', id) || id, s = o[src]; out.o[id] = { n: s ? s.n : 0, cat: catObject(src, s), ...(darkOrig('o', id) ? { dark: true } : {}) }; }
 fs.writeFileSync(path.join(__dirname, 'assets', 'tilestats.json'), JSON.stringify(out));
 const count = (t, k) => Object.values(out[t]).reduce((m, v) => (m[v.cat] = (m[v.cat] || 0) + 1, m), {});
 console.log('suelos:', JSON.stringify(count('g')), '\nobjetos:', JSON.stringify(count('o')));
