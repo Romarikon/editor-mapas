@@ -11,6 +11,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "mysql2": "^3.24.5"
+    "mysql2": "^3.24.5",
+    "sharp": "^0.35.5"
   }
 }

@@ -1,0 +1,945 @@
+# Etiquetas de tiles puestas a ojo sobre las hojas de contacto (make-sheets.js). Formato: tile: etiqueta, etiqueta
+# o = objeto, g = suelo. Se convierten a assets/tags.json con build-tags.js. Corregibles desde el editor.
+# --- hoja 1
+o282: hierba
+o283: hierba
+o989: hierba
+o284: flores, planta
+o288: hierba seca
+o204: planta, arbusto
+o990: sombra
+o1060: planta trepadora
+o988: hierba
+o289: hierba seca
+o545: trigo, cultivo
+o286: flores
+o3714: hierba alta
+o287: flores
+o7511: trigo, cultivo
+o987: hierba
+o2730: planta
+o2731: planta
+o3717: hierba alta
+o959: hierba seca
+o1045: planta trepadora
+o986: luz, efecto
+o4088: símbolo, marca en el suelo
+o3713: hierba alta
+o1722: arbusto, flores
+o285: arbusto
+o7350: cofre
+o2143: bambú
+o1721: arbusto, flores
+o7516: trigo, cultivo
+o7513: trigo, cultivo
+o2769: piedras
+o220: juncos
+o3712: hierba alta
+o1849: hierba
+o221: juncos
+o4174: lluvia, efecto
+o7353: cofre
+o402: armero, armas
+o7514: trigo, cultivo
+o7517: trigo, cultivo
+o3626: hierba
+o1208: losa, piedra
+o2142: bambú
+o7550: hierba
+o2141: bambú
+o3746: hierba
+o7512: trigo, cultivo
+# --- hoja 2
+o2114: luz, efecto
+o2725: flores
+o4592: hoja gigante, planta
+o2156: bambú
+o442: cama, mueble
+o3959: platos
+o3960: platos
+o958: hierba seca
+o7518: trigo, cultivo
+o1713: tornado, humo, efecto
+o1047: planta trepadora
+o3961: platos
+o24: planta
+o957: hierba seca
+o2720: flores
+o3337: destellos, efecto
+o2140: bambú
+o479: escalera de mano
+o4613: portal, columnas
+o1046: luz, efecto
+o2202: hierba
+o4595: horno, fragua
+o2113: luz, efecto
+o4591: hoja gigante, planta
+o3962: platos
+o3382: nieve, rocas
+o1848: hierba
+o3716: hierba alta
+o1714: tornado, humo, efecto
+o2768: piedra
+o6767: puerta, madera, valla
+o1348: efecto
+o4604: lámpara colgante
+o3393: nieve, rocas
+o3992: lluvia, efecto
+o3990: lluvia, efecto
+o494: escaleras, madera
+o3120: antorcha de pared, farol
+o3972: hierba alta
+o3364: charco, agua
+o7521: burbujas, efecto
+o7515: trigo, cultivo
+o7533: trébol, planta
+o4605: campana
+o1268: destello, efecto
+# --- hoja 3
+o449: reloj, mueble
+o405: estantería, mueble
+o7520: burbujas, efecto
+o491: estante, botellas, bar
+o3715: hierba alta
+o493: mesa, mueble
+o7528: burbujas, efecto
+o4594: hoja gigante, planta
+o3991: lluvia, efecto
+o7535: trébol, planta
+o6763: puerta, madera, valla
+o2154: bambú
+o4151: frascos, alquimia
+o7532: burbujas, efecto
+o7523: burbujas, efecto
+o956: hierba seca
+o1345: planta
+o1349: flores
+o7534: trébol, planta
+o1026: mesa, comida, carnicería
+o4152: araña, colgante
+o7527: burbujas, efecto
+o4149: frascos, alquimia
+o452: lámpara, mueble
+o820: hierba
+o1030: símbolo, marca en el suelo
+o801: parche de hierba
+o543: flores, margaritas
+o1105: parche de tierra
+o2224: sombra
+o991: grava
+o930: sombra
+o1108: parche de tierra
+o931: sombra
+o30: borde de hierba
+o103: tierra
+o34: borde de hierba
+o901: poste
+o1012: poste, madera
+o1011: poste, madera
+o120: parche de tierra
+o2246: tierra
+o1063: setas
+o821: hierba
+o835: grava
+o822: hierba
+o159: grava
+# --- hoja 4
+o2106: musgo
+o628: muro, piedra
+o837: raíz, tronco
+o1113: parche de tierra
+o1106: parche de tierra
+o2105: musgo
+o118: manchas
+o4135: charco, barro
+o121: parche de arena
+o3997: sombra de árbol, sombra
+o620: poste
+o818: manchas
+o2226: musgo
+o619: poste
+o55: borde de hierba
+o226: nenúfares, agua
+o147: piedras, camino
+o1034: huesos
+o830: raíles, tuberías
+o117: manchas
+o31: borde de hierba
+o4601: arco, muro, piedra
+o29: hierba
+o1577: tubo, cuerda
+o374: hierba
+o4603: arco, muro, piedra
+o807: orilla, agua, acantilado
+o146: piedras, camino
+o805: orilla, agua, acantilado
+o3994: sombra
+o50: borde de hierba
+o35: borde de hierba
+o1109: parche de tierra
+o804: orilla, agua
+o1972: columna
+o2084: sombra
+o375: hierba
+o2850: tierra
+o1973: columna
+o824: losas, piedra
+o806: orilla, agua
+o89: borde de hierba, flores
+o53: borde de hierba
+o2107: musgo
+o836: grava
+o32: parche de hierba
+o4794: musgo
+o88: borde de hierba, flores
+# --- hoja 5
+o3335: nieve
+o4177: raíz, borde de hierba
+o584: poste, madera
+o729: paja
+o1244: piedras, losas rotas
+o585: poste, madera
+o3996: sombra
+o2853: acantilado, borde de tierra
+o812: grieta, acantilado, agua
+o814: grieta, acantilado
+o3999: sombra
+o2108: musgo
+o4180: raíz, borde de hierba
+o52: borde de hierba
+o1107: parche de tierra
+o2852: borde de tierra, acantilado
+o2854: borde de tierra, acantilado
+o974: sombra
+o1560: sombra
+o39: borde de hierba
+o1662: flores
+o54: borde de hierba
+o2855: acantilado, borde de tierra
+o45: planta
+o4296: musgo
+o1013: puerta, madera
+o2159: musgo
+o2225: sombra
+o4490: paja, nido
+o874: ventana
+o4178: raíz, borde de hierba
+o4179: raíz, borde de hierba
+o174: alfombra roja, alfombra
+o18: charco, barro
+o2123: hojas secas
+o1242: losas, piedra
+o1112: parche de tierra
+o811: acantilado, orilla, agua
+o2861: acantilado, borde de tierra
+o630: muro, piedra
+o1132: columna
+o1131: columna
+o2859: borde de tierra, acantilado
+o813: orilla, agua
+o3995: sombra
+o1110: parche de tierra
+o815: acantilado, orilla, agua
+o1555: poste
+# --- hoja 6
+o1114: parche de tierra
+o819: hierba
+o2109: musgo
+o838: raíz, tronco, acantilado
+o3579: sombra
+o3745: charco, ácido
+o3993: sombra
+o4048: columna, muro
+o2857: acantilado, borde de tierra
+o4216: charco, barro
+o2790: tapiz, estandarte
+o2160: musgo
+o2100: bloque de tierra, plataforma
+o80: cuerda, raíz
+o106: losas, piedra
+o1121: losas, arena
+o1111: parche de tierra
+o809: borde de hierba, agua
+o2131: hojas secas
+o2427: tablones, madera, suelo
+o2863: acantilado, borde de tierra
+o2165: piedras
+o3331: agujero, sombra
+o2163: piedras
+o810: acantilado, orilla, agua
+o158: losas, piedra
+o3336: nieve
+o4796: musgo
+o101: losas, piedra
+o502: mesa, mapa, pergamino
+o145: piedras, camino
+o808: acantilado, orilla, agua
+o1975: tronco, columna
+o51: borde de hierba
+o2101: bloque de tierra, plataforma
+o2204: musgo
+o104: losas, piedra
+o633: tabla, madera, muro
+o2250: losas, baldosas
+o4045: columna, muro
+o1720: parche de tierra
+o589: tubería, poste
+o394: pilar en el agua, plataforma
+o1210: arco, muro
+o1044: enredadera, planta
+o2351: escombros
+o4141: charco, barro, musgo
+# --- hoja 7
+o376: borde de hierba
+o1099: tablones, madera
+o1554: poste, piedra
+o636: orilla, agua
+o1138: alfombra
+o747: mancha, tierra
+o4157: columna, muro
+o4175: charco
+o622: poste, madera
+o2860: borde de hierba
+o379: bloque de tierra, agua
+o3003: camino, raíles
+o2862: acantilado, borde de tierra
+o635: orilla, agua
+o1098: tablones, madera
+o1451: roca ardiente, fuego
+o1115: parche de tierra
+o124: piedra
+o623: poste, madera
+o3512: columna, piedra
+o4736: arbusto, flores
+o2858: acantilado, borde de tierra
+o2856: borde de hierba
+o629: poste, madera
+o4602: muro, ruinas
+o1976: muro, arco
+o378: bloque de tierra, agua
+o621: esquina, muro
+o3513: columna, piedra
+o645: agua
+o4046: columna, muro
+o1136: alfombra
+o3319: charco, huevo
+o4492: manchas
+o93: estaca, piedra
+o102: borde de hierba
+o1096: piedras
+o100: estaca, piedra
+o816: engranajes, maquinaria
+o2199: musgo
+o1463: fuego, lava
+o4032: sombra
+o377: bloque de tierra, agua
+o3321: telaraña, cuerdas
+o383: bloque de tierra, agua
+o902: muro, piedra
+o4030: sombra, agua
+o116: losas, piedra
+# --- hoja 8
+o638: orilla, agua, acantilado
+o590: portal, arco
+o87: borde de hierba, flores
+o105: losas, piedra
+o1990: sombra
+o2097: bloque de tierra, plataforma
+o1097: tablones, madera
+o1553: poste, piedra
+o1464: lava, fuego
+o2102: bloque de tierra, plataforma
+o646: orilla, agua, acantilado
+o614: poste, madera
+o2079: hierba, colina
+o151: puerta, madera
+o1326: losa, piedra
+o3857: charco, ácido
+o3818: rocas
+o3998: sombra
+o2429: tablones, madera
+o2874: columna, muro, ladrillo
+o3388: portal, magia
+o227: flor de loto, flores
+o1556: poste, piedra
+o2192: pergamino, cartel
+o637: orilla, agua
+o2198: musgo
+o641: orilla, agua, acantilado
+o4000: sombra
+o3329: raíz, liana
+o583: horca, madera
+o963: sangre, charco
+o4051: bloque de hierba, plataforma
+o642: acantilado, orilla, agua
+o2085: hierba, colina
+o2236: alfombra, tela
+o3813: rocas, losas
+o4778: paja
+o770: alfombra, tela
+o2098: bloque de tierra, plataforma
+o393: pilar en el agua, plataforma
+o4142: charco, musgo
+o1074: alfombra, símbolo
+o2798: alfombra, tablero
+o173: alfombra roja, alfombra
+o1974: esquina, muro, columna
+o2080: hierba, colina
+o4737: arbusto, flores
+o1137: alfombra
+# --- hoja 9
+o2099: bloque de tierra, plataforma
+o643: agua, orilla
+o36: parche de hierba
+o2086: hierba, colina
+o4378: sombra
+o2096: bloque de tierra, plataforma
+o417: troncos, madera, pila
+o4795: musgo
+o1659: flores
+o3860: musgo
+o2189: musgo
+o587: arcos, flechas, armas
+o873: utensilios de cocina, sartenes
+o2088: hierba, colina
+o906: losas, piedra
+o2976: poste, piedra
+o3038: columna, piedra
+o1573: toldo, tienda, bambú
+o3815: losas, piedra
+o631: puerta, farol
+o2635: estandarte, tapiz
+o1240: tejado
+o2200: musgo
+o895: ventana
+o3007: camino, raíles
+o1207: losa, piedra
+o2194: muro, pergamino, papel
+o189: tótem, madera
+o382: bloque de tierra, agua
+o1450: fuego, hoguera
+o153: puerta, madera
+o3615: columna, piedra
+o165: poste, estandarte
+o610: arco, portal, piedra
+o2197: esquina, muro, papel
+o1029: símbolo, marca en el suelo
+o2180: marca en el suelo
+o3483: charco, arena
+o2087: hierba, borde
+o2201: hierba
+o2800: hojas, losas
+o3328: telaraña, cuerdas
+o4671: tablones, planta
+o2196: muro, papel
+o3034: columna, piedra
+o4673: tablones, madera
+o2977: poste, piedra
+o3816: losas, piedra
+# --- hoja 10
+o381: bloque de tierra, agua
+o644: agua
+o425: losas, piedra
+o2082: hierba, colina
+o2095: hierba, colina
+o1660: flores
+o834: raíles
+o2195: muro, ventana, papel
+o166: poste, estandarte
+o731: piedras, guijarros
+o541: setas
+o216: arbusto
+o218: arbusto
+o1494: grietas
+o2615: cartel, señal
+o2617: cartel, señal
+o4189: cartel, madera
+o552: valla, madera
+o279: roca
+o2403: niebla, humo, efecto
+o4550: runa, símbolo
+o482: mesa, mueble
+o232: árbol, otoño
+o498: taburete, mesa, mueble
+o278: roca
+o233: árbol, otoño
+o4127: hierba seca, arbusto
+o280: roca
+o544: roca
+o4129: hierba alta, arbusto
+o276: roca
+o225: juncos
+o277: roca
+o234: árbol pequeño, árbol
+o550: roca
+o2616: tótem, madera
+o2723: flores
+o2619: tablones, madera, ruinas
+o2722: flores
+o455: silla, mueble
+o3324: estaca, poste
+o2119: flor, planta exótica
+o454: silla, mueble
+o235: árbol pequeño, árbol
+o4588: seta, buzón
+o2120: flor
+o2724: flores
+o4188: poste, espantapájaros
+# --- hoja 11
+o1468: monedas, tesoro, luz
+o2721: flores
+o2618: tótem, estatua, piedra
+o920: suelo de hierba
+o4765: musgo
+o875: trampilla, escalera, madera
+o3357: huesos, cadenas
+o4128: hierba seca, arbusto
+o3327: cartel, poste
+o495: barriles
+o4551: runa, símbolo
+o415: estantería, botellas, mueble
+o4402: cama, mueble
+o2128: planta exótica, flor
+o1019: caja, cajón
+o404: taburete, mueble
+o201: tocón, tronco
+o111: roca, cráneo
+o2121: flores
+o1343: juncos, flores
+o416: estantería, libros, mueble
+o20: tocón, harina, molino
+o876: saco
+o1033: calavera, huesos
+o2129: flores
+o406: barril
+o3363: charco, agua
+o679: verja, valla, hierro
+o435: barriles
+o4159: caja, cajón
+o433: mesa, libros, mueble
+o4016: frascos, alquimia
+o411: botellas
+o1090: valla rota, madera
+o2872: hierba, borde
+o2161: nenúfares, agua
+o2162: nenúfares, agua
+o2767: piedra
+o863: estufa, chimenea
+o439: mostrador, mesa, mueble
+o483: mesa, mueble
+o904: trampilla, escalera
+o4400: saco, jarrón
+o4598: maceta, planta
+o1347: planta
+o4401: armario, puerta, mueble
+o1628: espantapájaros
+o1016: vela
+# --- hoja 12
+o4586: sofá, cama, mueble
+o2766: piedra
+o2870: arbustos, musgo
+o2864: arbustos, musgo
+o1103: lanza, arma
+o865: mecedora, silla, mueble
+o1575: hielo, suelo
+o2869: arbustos, musgo
+o1467: monedas, tesoro
+o4270: hierba alta
+o412: escaleras, madera
+o1726: banderines, guirnalda
+o23: calabaza
+o125: bloque de hierba, plataforma
+o2127: casco, armadura
+o4597: mesa, maceta, mueble
+o443: escritorio, libro, mueble
+o2174: balsa, esterilla
+o900: cabeza de dragón, trofeo
+o540: troncos, leña
+o2867: arbustos, musgo
+o580: rocas
+o2865: tronco caído, madera
+o4271: juncos, espadañas
+o997: brasas, fuego
+o1388: juncos, caña
+o1564: ventana, rejas
+o3306: planta exótica
+o521: valla, madera
+o2122: flor
+o4606: maceta, planta
+o2866: estaca, madera
+o995: brasas, fuego
+o2187: maceta, planta
+o1076: cristales, oscuro
+o1465: monedas, tesoro
+o2793: pozo, cubo
+o4181: jarrón, vasija
+o453: taburete, mueble
+o993: brasas, fuego
+o1018: caja, cajón
+o2273: flores
+o710: árbol muerto, tronco
+o3424: planta de hielo, cristales
+o487: cómoda, mueble
+o653: poste, columna
+o4589: mesa, mueble
+o2996: mesa, mueble
+# --- hoja 13
+o4686: neumáticos, aros
+o2184: tambor, barril, bambú
+o2172: balsa, bambú
+o270: roca
+o652: poste, farola
+o752: valla, troncos
+o112: roca, cráneo
+o711: árbol muerto, tronco
+o4554: tótem, luz, magia
+o2620: tótem, madera
+o4010: jarrón, vasija
+o2369: arbusto, flores
+o2367: rocas, planta
+o2370: arbusto, flores
+o4772: planta carnívora, planta
+o3303: planta exótica
+o3166: huesos
+o4555: tótem, luz, magia
+o4015: frascos, alquimia
+o410: jarrón, ánfora
+o994: brasas, fuego
+o1281: flores
+o4557: tótem, luz, magia
+o3425: planta de hielo, cristales
+o420: cubo, tina
+o4764: musgo
+o2792: pozo, cubo
+o4806: paja
+o70: roca en el agua
+o3531: valla, madera
+o4600: maceta, planta
+o2994: mesa, mueble
+o2215: rocas
+o4556: tótem, luz, magia
+o3289: cristal luminoso, luz
+o996: brasas, fuego
+o445: escritorio, mueble
+o2366: rocas, planta
+o4161: valla, troncos
+o213: árbol
+o91: tronco, poste
+o223: árbol, abeto
+o90: tronco, poste
+o96: tronco, poste
+o95: tronco, poste
+o7500: árbol pequeño, arbusto
+o1055: palmera, planta
+o2733: árbol, palmera
+# --- hoja 14
+o275: rocas
+o925: luz, lámpara
+o2732: palmera, árbol
+o2728: palmera, árbol
+o1073: farol, luz
+o97: obelisco, piedra
+o1787: estatua oscura, tótem
+o7501: árbol pequeño, arbusto
+o961: árbol retorcido, árbol
+o1032: calaveras, huesos
+o962: árbol retorcido, árbol
+o274: roca
+o1712: columna de humo, efecto
+o2729: árbol, palmera
+o2715: roca, musgo
+o1717: estalagmitas, huesos
+o3323: estatua oscura, tótem
+o92: obelisco, piedra
+o1718: estalagmitas, huesos
+o2765: piedra
+o3290: estatua oscura, tótem
+o1729: embudo, sombra
+o1704: globos, adorno
+o2760: roca
+o2756: roca
+o2758: roca
+o1392: columna, piedra
+o3941: bambú, troncos
+o2151: bambú
+o1489: árbol muerto, árbol oscuro
+o2711: roca, musgo
+o2150: bambú
+o94: estaca, piedra
+o1057: árbol, otoño
+o1786: estatua oscura, tótem
+o272: roca
+o2759: roca
+o2716: roca, musgo
+o1716: columna de humo, efecto
+o69: planta exótica
+o2710: roca, musgo
+o982: brasas, raíz
+o983: brasas, raíz
+o7502: árbol pequeño, arbusto
+o2136: bambú
+o2139: bambú
+o984: brasas, raíz
+o2218: bambú
+# --- hoja 15
+o3285: estatua oscura, tótem
+o1058: árbol grande, árbol
+o1784: tótem, calavera, oscuro
+o2158: bambú
+o3900: planta, bambú
+o3942: empalizada, bambú, valla
+o992: brasas, fuego
+o1788: estatua oscura, humo
+o1403: tronco, poste
+o2157: bambú
+o1711: columna de humo, oscuro
+o7504: árbol pequeño, arbusto
+o99: estaca, piedra
+o1394: tronco, poste
+o2132: bambú
+o7503: árbol pequeño, arbusto
+o4008: frasco, reloj de arena, alquimia
+o4009: frasco, reloj de arena, alquimia
+o3091: obelisco, piedra
+o1084: árbol muerto, árbol
+o98: estaca, piedra
+o2652: poste, cartel
+o4007: frasco, reloj de arena, alquimia
+o2135: bambú
+o2171: bambú
+o219: árbol
+o212: árbol
+o217: árbol frutal, árbol
+o955: arbusto seco
+o215: árbol
+o1549: armazón, madera
+o211: árbol
+o236: árbol, otoño
+o229: árbol, otoño
+o40: árbol
+o281: roca
+o228: árbol, otoño
+o239: árbol
+o43: árbol
+o238: árbol
+o237: árbol, otoño
+o231: árbol
+o230: árbol
+o1771: banco, silla, mueble
+o222: árbol oscuro, árbol
+o1445: caseta, armario
+o948: árbol muerto, árbol oscuro
+o2727: palmera, árbol
+# --- hoja 16
+o556: roca
+o947: árbol, otoño
+o1734: seta gigante, seta
+o2926: muro, piedra
+o1484: lápida, tumba
+o3246: árbol muerto, tronco hueco
+o44: árbol
+o2117: arco, muro, musgo
+o960: árbol muerto, árbol oscuro
+o2726: palmera, planta
+o1512: barriles, telaraña
+o1733: seta gigante, seta
+o1599: ventana, rejas
+o499: barril, caja
+o1732: seta gigante, seta
+o2118: arco, muro, musgo
+o951: árbol muerto, árbol oscuro
+o1702: valla, madera
+o4590: poste, luz
+o4023: frasco, alquimia
+o1505: maceta, flores
+o2126: roca, musgo
+o949: árbol muerto, árbol oscuro
+o1611: columna, ladrillo
+o4006: jarrón, vasija
+o1703: valla, madera
+o2757: piedra
+o1088: tronco, pinchos
+o1719: estalagmitas, huesos
+o1551: troncos, columna
+o1023: cajas, cajón
+o444: armario, mueble
+o4503: valla, troncos
+o1231: poste, tejado
+o273: roca
+o1021: cajas, cajón
+o2152: bambú
+o4005: jarrón, vasija
+o2925: muro, piedra
+o2116: columna, musgo
+o2400: tocón, tronco
+o1022: cajas, cajón
+o1514: reloj de pie, mueble
+o1517: armario, telaraña, mueble
+o1508: mesa, mueble
+o2115: columna, musgo
+o41: árbol
+o1230: poste, tejado
+# --- hoja 17
+o2066: estalagmitas, huesos
+o1504: cama, mueble
+o192: roca, cráneo
+o3930: palmera, arbusto
+o1571: alfombra
+o3413: abeto nevado, árbol, nieve
+o2435: columna, madera
+o3411: abeto nevado, árbol, nieve
+o4210: palmera, arbusto
+o2137: bambú, flor
+o1715: columna de humo, efecto
+o3925: palmera, arbusto
+o2065: estalagmitas, huesos
+o3366: cristal, hielo
+o1756: cuadro, cartel
+o1516: estantería, libros, mueble
+o4002: palmera, arbusto
+o2124: columna, musgo
+o271: roca
+o1511: mesa, alquimia, mueble
+o3414: abeto nevado, árbol, nieve
+o2125: columna, musgo
+o126: ruina, bloque, estatua
+o328: carretilla, vagoneta
+o3928: palmera, arbusto
+o1318: espejo, mueble
+o3297: empalizada, valla
+o1135: rayo de luz, ventana
+o4004: jarrón, huevo
+o4208: palmera, árbol
+o950: árbol muerto, árbol oscuro
+o4609: escudo, puerta
+o426: barril, caja
+o3401: abeto nevado, árbol, nieve
+o2138: bambú
+o4022: frasco, alquimia
+o1102: tijeras, herramienta
+o4155: puerta, marco
+o1083: árbol muerto, árbol
+o716: hoguera, fuego
+o1263: arbusto, árbol pequeño
+o3922: palmera, árbol
+o1134: ventana
+o2208: bambú
+o3939: empalizada, bambú
+o998: brasas, fuego
+o478: vela, candelabro
+o3412: abeto nevado, árbol, nieve
+# --- hoja 18
+o3300: empalizada, valla
+o4087: palmera, arbusto
+o1371: estatua, ruina
+o4001: maceta, flor
+o1510: mesa, mueble
+o3402: abeto nevado, árbol, nieve
+o2217: estatua, piedra
+o929: colmillo, hueso
+o999: brasas, fuego
+o1261: arbusto
+o3368: cristal, hielo
+o657: columna, piedra, muro
+o3927: palmera, arbusto
+o1368: estatua, ruina
+g136: vacío negro
+g27: suelo verde, hierba
+g349: hielo, agua
+g458: agua clara
+g44: agua
+g28: hierba
+g459: hierba clara
+g492: hierba oscura
+g254: hierba
+g61: hierba
+g457: agua
+g45: agua
+g143: muro
+g142: muro
+g452: agua clara, borde
+g455: agua
+g29: hierba
+g46: agua
+g453: agua clara, borde
+g13: suelo claro, arena
+g272: hierba
+g255: hierba oscura
+g273: agua
+g30: hierba
+g86: hierba
+g467: agua clara, borde
+g463: agua clara, borde
+g160: esterilla, tela
+g128: parqué, madera
+g502: hierba
+g49: hierba
+g70: piedra agrietada, losas
+g69: hierba
+g163: arena, montón
+# --- hoja 19
+g26: tarima, madera, plataforma
+g57: hierba
+g164: montón de paja, heno
+g450: arena
+g501: hierba
+g118: losas, piedra, plataforma
+g100: tierra
+g264: tierra, arena
+g511: hierba
+g4: hierba
+g137: suelo claro, piedra
+g59: hierba
+g66: losas, piedra
+g58: hierba
+g40: hierba oscura, borde
+g10: arena
+g99: tierra
+g623: tablones, madera
+g5: arena
+g183: vacío oscuro, sombra
+g54: arena, tierra
+g507: hierba
+g64: tarima, piedra, plataforma
+g68: tarima, madera, plataforma
+g509: hierba
+g53: arena clara
+g12: parqué oscuro, madera
+g449: tablones, madera
+g451: agua clara, borde
+g101: tierra
+g167: montón de arena, grava
+g32: losas, plataforma
+g9: tarima, madera, plataforma
+g122: losas, piedra
+g194: grava
+g210: baldosas, losas
+g388: musgo, tierra
+g6: losas, piedra
+g201: losas, piedra, hielo
+g446: hierba, plataforma
+g316: bloque de piedra, plataforma
+g39: hierba
+g138: camino
+g466: agua clara, borde
+g590: tablones, madera
+g8: tarima, madera, plataforma
+g265: tierra
+g159: adoquines, camino
+# --- hoja 20
+g462: agua clara, borde
+g42: hierba oscura
+g320: andamio, madera, plataforma
+g25: losas, piedra, plataforma
+g123: paja, tejado
+g41: hierba oscura, borde
+g165: montón de arena
+g187: grava, piedras
+g33: hierba oscura
+g129: losas, piedra, plataforma
+g504: hierba
+g77: baldosas, suelo
+g270: grava
+g127: parqué, madera
+g326: bloque de piedra, plataforma
+g186: grava, piedras

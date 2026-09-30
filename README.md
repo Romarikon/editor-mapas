@@ -23,6 +23,9 @@ base de datos.
 - **Pesadilla / Sueño febril**: reviste un mapa con la paleta de un tema oscuro real (cementerio, Brakmar,
   pantano, tierras devastadas) conservando su estructura; el sueño febril añade incoherencias (objetos fuera de
   lugar, suelos deformados, terreno roto, objetos atravesables, fragmentos en espejo) sin romper los caminos.
+- **Etiquetas de tiles** (puerta, silla, mesa, árbol, tumba, antorcha…): 923 puestas a mano sobre los tiles más
+  usados (90% de las apariciones) y el resto por categoría; editables desde Seleccionar (`tags-user.json`),
+  buscables en la paleta y usadas por la pesadilla (sustituto del mismo rol) y el sueño febril (escenas oníricas).
 - **Archivos `.dmap.json`** para compartir mapas.
 
 ## Requisitos
@@ -40,6 +43,7 @@ npm install
 FFDEC=/ruta/ffdec-cli.jar node extract-assets.js "<cliente>/resources/app/retroclient/clips/gfx" assets
 # 2) arrancar
 node tile-stats.js    # categorías de la paleta (necesita data/maps-pack.json: node pack.js)
+node build-tags.js    # etiquetas (tags-manual.txt -> assets/tags.json)
 node server.js        # http://localhost:4600
 ```
 

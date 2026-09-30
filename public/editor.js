@@ -34,6 +34,7 @@
     S.index = await api('/assets/index.json').catch(() => ({ g: {}, o: {} }));
     S.npcTemplates = await api('/api/npcs').catch(() => []);
     S.stats = await api('/assets/tilestats.json').catch(() => null);
+    S.tags = await api('/api/tags').catch(() => ({ o: {}, g: {} }));
     fillCategories();
     await loadMapList('');
     buildPalette();
@@ -345,7 +346,19 @@
     $('#selInfo').innerHTML = `<img src="/assets/${kind}/${s.num}.svg">
       <table><tr><td>Celda</td><td>${s.cell}</td></tr><tr><td>Capa</td><td>${LAYER_NAMES[s.layer]}</td></tr>
       <tr><td>Tile</td><td>${s.num}</td></tr><tr><td>Volteado</td><td>${c[LAYER_FIELDS[s.layer][1]] ? 'sí' : 'no'}</td></tr>
-      <tr><td>Celda</td><td>${c.movement ? 'caminable' : 'bloqueada'}${c.lineOfSight ? '' : ', sin visión'}, altura ${c.groundLevel}</td></tr></table>`;
+      <tr><td>Celda</td><td>${c.movement ? 'caminable' : 'bloqueada'}${c.lineOfSight ? '' : ', sin visión'}, altura ${c.groundLevel}</td></tr>
+      <tr><td>Roles</td><td>${(tagOf(kind, s.num).r || []).join(', ') || '—'}</td></tr></table>
+      <label class="field pad">Etiquetas (separadas por comas)${tagOf(kind, s.num).auto ? ' · automáticas, corrígelas' : ''}
+        <input id="selTags" value="${(tagOf(kind, s.num).t || []).join(', ')}"></label>
+      <div class="row btns"><button id="btnSaveTags">Guardar etiquetas</button></div>`;
+    $('#btnSaveTags').onclick = () => saveTags(kind, s.num, $('#selTags').value).catch(err => status('Error: ' + err.message));
+  }
+  const tagOf = (kind, num) => ((S.tags || {})[kind] || {})[num] || {};
+  async function saveTags(kind, num, text) {
+    const tags = text.split(',').map(t => t.trim()).filter(Boolean);
+    const r = await api('/api/tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, id: num, tags }) });
+    S.tags[kind][num] = r.tile; showSelection();
+    status(`Etiquetas del tile ${num} guardadas: ${tags.join(', ') || '(ninguna)'} · roles: ${(r.tile.r || []).join(', ') || '—'}.`);
   }
   function deleteSelection() {
     if (!S.sel) return;
@@ -680,9 +693,9 @@
       nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (stats[n] || {}).cat === cat);
       nums.sort((a, b) => ((stats[b] || {}).n || 0) - ((stats[a] || {}).n || 0) || a - b); // lo más usado primero
     }
-    if (q) nums = nums.filter(n => n.startsWith(q));
+    if (q) nums = /^\d+$/.test(q) ? nums.filter(n => n.startsWith(q)) : nums.filter(n => (tagOf(kind, n).t || []).some(t => t.includes(q.toLowerCase())) || (tagOf(kind, n).r || []).includes(q.toLowerCase()));
     const total = nums.length; nums = nums.slice(0, 400);
-    $('#palette').innerHTML = nums.map(n => `<div class="tile${S.tile && S.tile.kind === kind && S.tile.num === +n ? ' sel' : ''}" data-kind="${kind}" data-num="${n}"${group ? ' draggable="true"' : ''} title="Tile ${n} · usado ${(stats[n] || {}).n || 0} veces · clic derecho: favoritos${group ? ' · arrastra para ordenar' : ''}">`
+    $('#palette').innerHTML = nums.map(n => `<div class="tile${S.tile && S.tile.kind === kind && S.tile.num === +n ? ' sel' : ''}" data-kind="${kind}" data-num="${n}"${group ? ' draggable="true"' : ''} title="Tile ${n} · ${(tagOf(kind, n).t || []).join(', ')} · usado ${(stats[n] || {}).n || 0} veces · clic derecho: favoritos${group ? ' · arrastra para ordenar' : ''}">`
       + `${favs.has(kind + n) ? '<span class="fav">★</span>' : ''}<img loading="lazy" src="/assets/${kind}/${n}.svg"><small class="n">${n}</small></div>`).join('')
       + (total > 400 ? `<p>Se muestran 400 de ${total}; filtra por número o categoría.</p>` : !total ? '<p>No hay tiles en esta categoría.</p>' : '');
   }
@@ -736,7 +749,7 @@
     pushHistory();
     const protect = [...new Set([...(S.map.scriptedCells || []), ...S.exits.map(e => e.cell), ...S.npcs.map(p => p.cellid)])];
     const allBackgrounds = Object.entries((S.stats && S.stats.g) || {}).filter(([, v]) => v.cat === 'background').map(([id]) => +id);
-    const opts = { seed, stats: S.stats || { g: {}, o: {} }, index: S.index, protect, intensity: +$('#dreamIntensity').value, allBackgrounds };
+    const opts = { seed, stats: S.stats || { g: {}, o: {} }, index: S.index, tags: S.tags || { o: {}, g: {} }, protect, intensity: +$('#dreamIntensity').value, allBackgrounds };
     const tpl = { width: S.map.width, cells: S.cells };
     const out = kind === 'fever' ? window.MapGenerator.fever(tpl, th.maps, opts) : window.MapGenerator.nightmare(tpl, th.maps, opts);
     S.cells = out.cells; S.pos = C.cellPositions(S.cells, S.map.width);
@@ -745,7 +758,7 @@
     render();
     const st = out.stats;
     status(kind === 'fever'
-      ? `Sueño febril (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.strange} objetos fuera de lugar, ${st.ghosts} fantasmas, ${st.rotated} suelos girados, ${st.raised} celdas de terreno roto, ${st.mirrored} en espejo${st.carved ? ', ' + st.carved + ' abiertas para unir zonas' : ''}.`
+      ? `Sueño febril (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.strange} objetos fuera de lugar, ${st.ghosts} fantasmas, ${st.rotated} suelos girados, ${st.raised} celdas de terreno roto, ${st.mirrored} en espejo${st.scenes && st.scenes.length ? ', escenas: ' + st.scenes.join(', ') : ''}${st.carved ? ', ' + st.carved + ' abiertas para unir zonas' : ''}.`
       : `Pesadilla (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.thinned} decoraciones quitadas, ${st.debris} restos añadidos (aprendido de ${st.themeMaps} mapas).`);
   }
 

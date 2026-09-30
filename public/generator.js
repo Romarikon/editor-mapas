@@ -279,7 +279,9 @@
   }
 
   /** Sustituto de un tile: misma categoría (según su uso real en todos los mapas) y tamaño parecido, ponderado por uso en el tema. */
-  function makeMapper(pal, stats, index, r) {
+  const rolesOf = (tags, kind, id) => (((tags || {})[kind] || {})[id] || {}).r || [];
+  function roleSim(a, b) { if (!a.length || !b.length) return 0; const B = new Set(b); const inter = a.filter(x => B.has(x)).length; return inter / (a.length + b.length - inter); }
+  function makeMapper(pal, stats, index, r, tags) {
     const cache = new Map();
     return (kind, num) => {
       if (!num) return 0;
@@ -291,7 +293,9 @@
         if (((stats[kind] || {})[id] || {}).cat !== cat) continue;
         const o = index[kind][id]; if (!o) continue;
         const size = Math.abs(Math.log((o.w * o.h + 1) / (me.w * me.h + 1)));
-        cands.push([id, n / (1 + size * 3)]);
+        const myRoles = rolesOf(tags, kind, num), theirRoles = rolesOf(tags, kind, id);
+        if (myRoles.includes('efecto') !== theirRoles.includes('efecto')) continue; // un efecto solo por otro efecto
+        cands.push([id, (n / (1 + size * 3)) * (1 + 4 * roleSim(myRoles, theirRoles))]);
       }
       let out = num;
       if (cands.length) { cands.sort((a, b) => b[1] - a[1]); const top = cands.slice(0, 6); out = pick(r, new Map(top)); }
@@ -303,7 +307,7 @@
   function nightmare(template, themeMaps, opts) {
     const r = rng(opts.seed), w = template.width, n = template.cells.length;
     const cells = template.cells.map(c => ({ ...c }));
-    const pal = themePalette(themeMaps), map = makeMapper(pal, opts.stats, opts.index, r);
+    const pal = themePalette(themeMaps), map = makeMapper(pal, opts.stats, opts.index, r, opts.tags);
     let swapped = 0, thinned = 0, debris = 0;
     for (const c of cells) {
       if (!c.active) continue;
@@ -334,15 +338,50 @@
 
     // 1) suelos girados: el cliente los aplasta al 51% / estira al 193% al girarlos 90º → aspecto deformado
     for (const i of interior) { const c = cells[i]; if (c.groundSlope === 1 && r() < 0.1 * k) { c.layerGroundRot = 1 + ((r() * 3) | 0); st.rotated++; } }
-    // 2) objetos que no deberían estar aquí (de cualquier zona del juego), sin cambiar si se puede pasar
-    for (const i of interior) {
-      const c = cells[i];
-      if (!c.movement && c.layerObject2Num && r() < 0.12 * k) { let o; for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco', 'obstacle'].includes(cat('o', o))) break; } c.layerObject2Num = o; st.strange++; }
+    // reservas por rol (solo etiquetas puestas a mano/corregidas, nunca efectos)
+    const pools = {};
+    for (const [id, t] of Object.entries((opts.tags || {}).o || {})) {
+      if (t.auto || !opts.index.o[id] || (t.r || []).includes('efecto')) continue;
+      for (const role of t.r || []) (pools[role] ||= []).push(+id);
     }
-    // 3) objetos fantasma: cosas grandes sobre celdas caminables… que se atraviesan
+    const fromPool = role => { const p = pools[role]; return p && p.length ? p[(r() * p.length) | 0] : 0; };
+    const mainRole = id => { const rs = rolesOf(opts.tags, 'o', id).filter(x => !['efecto', 'oscuro', 'suelo'].includes(x)); return rs[0]; };
+    // 2) objetos del mismo tipo… de otro mundo: una puerta sigue siendo una puerta, pero de otro sitio
     for (const i of interior) {
       const c = cells[i];
-      if (c.movement && !c.layerObject2Num && r() < 0.02 * k) { let o; for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco'].includes(cat('o', o))) break; } c.layerObject2Num = o; c.layerObject2Flip = r() < 0.5; st.ghosts++; }
+      if (!c.movement && c.layerObject2Num && r() < 0.12 * k) {
+        const role = mainRole(c.layerObject2Num);
+        let o = role ? fromPool(role) : 0;
+        if (!o) for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco', 'obstacle'].includes(cat('o', o))) break; }
+        c.layerObject2Num = o; st.strange++;
+      }
+    }
+    // 3) fantasmas: muebles, luces, tumbas o puertas sobre celdas caminables… que se atraviesan
+    const ghostRoles = ['luz', 'asiento', 'mueble', 'tumba', 'puerta', 'contenedor'];
+    for (const i of interior) {
+      const c = cells[i];
+      if (c.movement && !c.layerObject2Num && r() < 0.02 * k) {
+        let o = fromPool(ghostRoles[(r() * ghostRoles.length) | 0]);
+        if (!o) for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco'].includes(cat('o', o))) break; }
+        c.layerObject2Num = o; c.layerObject2Flip = r() < 0.5; st.ghosts++;
+      }
+    }
+    // 3b) escenas oníricas en zonas despejadas: comedor abandonado, puerta a ninguna parte, círculo de velas, tumba entre muebles
+    const free = i => cells[i] && cells[i].active && cells[i].movement && !cells[i].layerObject2Num && !outer[i] && !protect.has(i);
+    const scenes = [
+      ['comedor', a => { const t = fromPool('mesa'); if (!t) return 0; cells[a].layerObject2Num = t; cells[a].movement = 0; cells[a].lineOfSight = true;
+        let n2 = 0; for (const b of neigh(a, w, n)) if (free(b) && r() < 0.8) { const s2 = fromPool('asiento'); if (s2) { cells[b].layerObject2Num = s2; cells[b].layerObject2Flip = r() < 0.5; n2++; } } return 1 + n2; }],
+      ['puerta', a => { const d = fromPool('puerta'); if (!d) return 0; cells[a].layerObject2Num = d; cells[a].movement = 0; cells[a].lineOfSight = true; return 1; }],
+      ['velas', a => { let n2 = 0; for (const b of neigh(a, w, n)) if (free(b)) { const l = fromPool('luz'); if (l) { cells[b].layerObject2Num = l; n2++; } } const t = fromPool('tumba'); if (t && free(a)) { cells[a].layerObject2Num = t; n2++; } return n2; }],
+      ['tumba', a => { const t = fromPool('tumba'); if (!t) return 0; cells[a].layerObject2Num = t; cells[a].movement = 0; let n2 = 1;
+        for (const b of neigh(a, w, n)) if (free(b) && r() < 0.5) { const m2 = fromPool('mueble'); if (m2) { cells[b].layerObject2Num = m2; n2++; } } return n2; }],
+    ];
+    st.scenes = [];
+    for (let p = 0; p < k + 1; p++) {
+      const open = interior.filter(i => free(i) && neigh(i, w, n).filter(free).length >= 3);
+      if (!open.length) break;
+      const [name, fn] = scenes[(r() * scenes.length) | 0];
+      if (fn(open[(r() * open.length) | 0])) st.scenes.push(name);
     }
     // 4) terreno roto: parches de 3-6 celdas que suben o bajan de nivel
     for (let p = 0; p < 2 * k && interior.length; p++) {

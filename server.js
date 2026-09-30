@@ -215,6 +215,18 @@ async function openSource() {
   return packSource();
 }
 
+// ------------------------------------------------------------------ etiquetas
+const TAG_ROLES = require('./tag-roles.js');
+function readTags() {
+  const base = path.join(__dirname, 'assets', 'tags.json'), userFile = path.join(__dirname, 'tags-user.json');
+  const tags = fs.existsSync(base) ? JSON.parse(fs.readFileSync(base, 'utf8')) : { o: {}, g: {} };
+  if (fs.existsSync(userFile)) {
+    const user = JSON.parse(fs.readFileSync(userFile, 'utf8'));
+    for (const kind of ['o', 'g']) for (const [id, t] of Object.entries(user[kind] || {})) tags[kind][id] = { t, r: TAG_ROLES.roles(t), user: true };
+  }
+  return tags;
+}
+
 // ------------------------------------------------------------------ http
 function send(res, code, data, type = 'application/json') {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -236,6 +248,18 @@ openSource().then(src => {
       let m;
       if (p === '/api/info') return send(res, 200, { offline: src.offline });
       if (p === '/api/themes') return send(res, 200, Object.entries(THEMES).map(([key, t]) => ({ key, name: t.name })));
+      // etiquetas de tiles: las generadas (assets/tags.json) + correcciones del usuario (tags-user.json, versionado), que mandan
+      if (p === '/api/tags' && req.method === 'GET') return send(res, 200, readTags());
+      if (p === '/api/tags' && req.method === 'POST') {
+        let body = ''; for await (const chunk of req) body += chunk;
+        const { kind, id, tags } = JSON.parse(body);
+        if (!/^[og]$/.test(kind) || !/^\d+$/.test(String(id)) || !Array.isArray(tags)) return send(res, 400, { error: 'datos no válidos' });
+        const file = path.join(__dirname, 'tags-user.json');
+        const user = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { o: {}, g: {} };
+        user[kind][id] = tags.map(t => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 12);
+        fs.writeFileSync(file, JSON.stringify(user, null, 1));
+        return send(res, 200, { ok: true, tile: readTags()[kind][id] });
+      }
       if ((m = p.match(/^\/api\/theme\/(\w+)$/))) {
         const t = await src.theme(m[1], +url.searchParams.get('w') || 15, +url.searchParams.get('h') || 17);
         return t ? send(res, 200, t) : send(res, 404, { error: 'tema desconocido' });

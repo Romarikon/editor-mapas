@@ -39,11 +39,12 @@ function copyDir(src, dst) {
   console.log(`  ${pack.maps.length} mapas, ${Object.keys(pack.npcs).length} mapas con NPC, ${Object.keys(pack.scripted).length} con celdas de acción`);
   console.log('Estadísticas de tiles para la paleta…');
   execFileSync(process.execPath, [path.join(__dirname, 'tile-stats.js')], { stdio: 'inherit' });
+  execFileSync(process.execPath, [path.join(__dirname, 'build-tags.js')], { stdio: 'inherit' });
 
   console.log('Armando', DIST);
   fs.rmSync(DIST, { recursive: true, force: true });
   for (const d of ['public', 'data', 'assets']) copyDir(path.join(__dirname, d), path.join(DIST, d));
-  for (const f of ['server.js', 'swfmap.js']) fs.copyFileSync(path.join(__dirname, f), path.join(DIST, f));
+  for (const f of ['server.js', 'swfmap.js', 'tag-roles.js', 'tags-user.json'].filter(f => fs.existsSync(path.join(__dirname, f)))) fs.copyFileSync(path.join(__dirname, f), path.join(DIST, f));
   fs.copyFileSync(process.execPath, path.join(DIST, 'node.exe'));
   fs.writeFileSync(path.join(DIST, 'Abrir editor.bat'),
     '@echo off\r\ncd /d "%~dp0"\r\nset OFFLINE=1\r\nstart "Editor de mapas (no cerrar)" node.exe server.js\r\ntimeout /t 2 /nobreak >nul\r\nstart "" http://localhost:4600\r\n');
