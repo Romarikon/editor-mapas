@@ -8,7 +8,13 @@ base de datos.
 
 - **Ver** mapas con su decorado, alturas y pendientes, con el mismo orden de capas que el cliente.
 - **Seleccionar**: clic sobre un sprite (detección por píxel) para ver a qué celda y capa pertenece; `Supr` lo borra, `F` lo voltea.
-- **Decorado**: pintar suelo, objeto 1 y objeto 2 desde una paleta con buscador.
+- **Decorado**: pincel (1 celda o radio 1-2), rectángulo, relleno y cuentagotas (`Alt`+clic) en suelo, objeto 1 y objeto 2.
+  Paleta con categorías según el uso real en los mapas (decorado de suelo, obstáculos, muros, árboles, fondos…),
+  "En esta zona", favoritos (clic derecho) y recientes, ordenada de más a menos usado.
+- **Deshacer / rehacer** (`Ctrl+Z` / `Ctrl+Y`) en todas las acciones.
+- **Copiar y pegar zonas** (`Mayús`+arrastrar en Seleccionar, `Ctrl+C`, `Ctrl+V`), también entre mapas.
+- **Salidas** entre mapas y enlazado automático de bordes por coordenadas del mundo (con la vuelta en el vecino).
+- **Exportar al juego**: SWF del mapa para el cliente + fila en la base, con validación previa.
 - **Celdas**: caminable, línea de visión y altura (`Alt`+clic).
 - **Combate**: casillas de colocación de cada equipo.
 - **NPC**: colocar plantillas de NPC.
@@ -30,6 +36,7 @@ npm install
 # 1) extraer los sprites del cliente (una vez; unos minutos)
 FFDEC=/ruta/ffdec-cli.jar node extract-assets.js "<cliente>/resources/app/retroclient/clips/gfx" assets
 # 2) arrancar
+node tile-stats.js    # categorías de la paleta (necesita data/maps-pack.json: node pack.js)
 node server.js        # http://localhost:4600
 ```
 
@@ -49,5 +56,6 @@ Los sprites y mapas pertenecen a Ankama y **no se incluyen en este repositorio**
 
 ## Pendiente
 
-- Exportar tiles y celdas caminables al SWF del mapa del cliente (hoy solo se guardan en servidor las casillas de combate y los NPC).
-- Imagen de fondo del mapa.
+- Grupos de monstruos, objetos interactivos y otras acciones de celda.
+- Vista de mundo con los mapas colocados por coordenadas.
+- Generador con patrones de varias celdas (WFC) y modo prueba de caminos y línea de visión.

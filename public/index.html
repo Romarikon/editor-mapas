@@ -52,15 +52,29 @@
   </section>
   <aside id="right">
     <div id="paintPanel" class="panel" hidden>
+      <div class="row tools" id="paintTools">
+        <button data-tool="brush" class="on" title="Pincel (B)">Pincel</button>
+        <button data-tool="rect" title="Rectángulo: arrastra para rellenar una zona (R)">Rect.</button>
+        <button data-tool="fill" title="Relleno: sustituye todas las celdas conectadas con el mismo tile (G)">Relleno</button>
+        <button data-tool="pick" title="Cuentagotas: coge el tile de una celda (I · o Alt+clic con cualquier herramienta)">Gotero</button>
+      </div>
       <div class="row">
         <select id="paintLayer">
           <option value="g">Suelo</option>
           <option value="o1">Objeto 1</option>
           <option value="o2">Objeto 2</option>
         </select>
+        <select id="brushSize" title="Tamaño del pincel">
+          <option value="1">1 celda</option>
+          <option value="2">Radio 1</option>
+          <option value="3">Radio 2</option>
+        </select>
         <label><input type="checkbox" id="paintFlip"> Voltear</label>
       </div>
-      <input id="tileSearch" placeholder="Filtrar por número de tile">
+      <div class="row">
+        <select id="paletteCat" title="Categoría"></select>
+        <input id="tileSearch" placeholder="Nº de tile" class="grow">
+      </div>
       <div id="palette"></div>
     </div>
     <div id="exitPanel" class="panel" hidden>
@@ -80,6 +94,7 @@
         <button id="btnSelFlip" disabled title="F">Voltear</button>
         <button id="btnSelPick" disabled title="Usar este tile para pintar">Usar para pintar</button>
       </div>
+      <p id="selRegionInfo"><b>Zonas:</b> Mayús + arrastrar selecciona un área · <b>Ctrl+C</b> copia · <b>Ctrl+V</b> pega donde esté el ratón (también en otro mapa) · <b>Supr</b> vacía la zona.<br><b>Ctrl+Z / Ctrl+Y</b>: deshacer / rehacer (en cualquier modo).</p>
     </div>
     <div id="infoPanel" class="panel">
       <form id="metaForm" hidden>

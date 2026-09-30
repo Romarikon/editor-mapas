@@ -9,7 +9,20 @@
     map: null, cells: [], pos: [], places: [new Set(), new Set()], npcs: [], npcTemplates: [],
     mode: 'view', tile: null, npcTemplate: null, hover: -1, dirty: false,
     view: { scale: 1, ox: 40, oy: 40 }, pan: null, space: false,
+    tool: 'brush', drag: null, region: null, stats: null, zoneTiles: null,
   };
+
+  // ---------------------------------------------------------------- historial (deshacer / rehacer)
+  const H = { undo: [], redo: [] };
+  const snapshot = () => JSON.stringify({ cells: S.cells, places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs, exits: S.exits });
+  function pushHistory() { if (!S.map) return; H.undo.push(snapshot()); if (H.undo.length > 150) H.undo.shift(); H.redo = []; }
+  function restore(snap) {
+    const o = JSON.parse(snap);
+    S.cells = o.cells; S.places = [new Set(o.places[0]), new Set(o.places[1])]; S.npcs = o.npcs; S.exits = o.exits;
+    S.pos = C.cellPositions(S.cells, S.map.width); S.dirty = true; S.sel = null; showSelection(); renderExitList(); render();
+  }
+  function undo() { if (!H.undo.length) return status('Nada que deshacer.'); H.redo.push(snapshot()); restore(H.undo.pop()); status(`Deshecho (${H.undo.length} más).`); }
+  function redo() { if (!H.redo.length) return status('Nada que rehacer.'); H.undo.push(snapshot()); restore(H.redo.pop()); status('Rehecho.'); }
 
   // ---------------------------------------------------------------- carga
   async function api(path, opts) { const r = await fetch(path, opts); if (!r.ok) throw new Error((await r.json()).error || r.status); return r.json(); }
@@ -20,6 +33,8 @@
     if (info.offline) document.title += ' (sin conexión)';
     S.index = await api('/assets/index.json').catch(() => ({ g: {}, o: {} }));
     S.npcTemplates = await api('/api/npcs').catch(() => []);
+    S.stats = await api('/assets/tilestats.json').catch(() => null);
+    fillCategories();
     await loadMapList('');
     buildPalette();
     buildNpcList();
@@ -39,7 +54,7 @@
     S.npcs = (m.npcs || []).map(n => ({ npcid: n.npcid, cellid: n.cellid, orientation: n.orientation }));
     S.exits = (m.exits || []).map(e => ({ cell: e.cell, map: e.map, destCell: e.destCell }));
     S.reverse = [];
-    S.dirty = !fromServer; S.sel = null; showSelection();
+    S.dirty = !fromServer; S.sel = null; S.region = null; S.zoneTiles = null; H.undo = []; H.redo = []; showSelection();
     S.original = { cells: m.cells.map(c => ({ ...c })), places: m.places };
     S.generated = !fromServer; S.zone = null;
     $('#btnSave').disabled = !fromServer || !S.online;
@@ -84,6 +99,7 @@
     if (!S.map) return;
     const pos = readMeta().mappos;
     const nb = await api(`/api/neighbors/${S.map.id || 0}?pos=${encodeURIComponent(pos)}`);
+    pushHistory();
     const mine = bounds(S.pos), made = [];
     S.reverse = [];
     for (const side of ['top', 'bottom', 'left', 'right']) {
@@ -243,8 +259,15 @@
     const file = frame && meta.frames > 1 ? `${num}_${frame}.svg` : `${num}.svg`;
     const key = kind + '/' + file;
     let im = S.imgs.get(key);
-    if (!im) { im = new Image(); im.onload = () => render(); im.src = `/assets/${kind}/${file}`; S.imgs.set(key, im); }
-    return im.complete && im.naturalWidth ? { im, meta } : null;
+    if (!im) { im = new Image(); im.onload = () => { im.raster = rasterize(im, meta); render(); }; im.src = `/assets/${kind}/${file}`; S.imgs.set(key, im); }
+    return im.raster ? { im: im.raster, meta } : null;
+  }
+  // Un SVG se dibuja lento en canvas: se pasa una vez a bitmap (al doble para que el zoom siga nítido)
+  function rasterize(im, meta) {
+    const k = 2, c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(meta.w * k)); c.height = Math.max(1, Math.ceil(meta.h * k));
+    c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
+    return c;
   }
 
   // Misma transformación que el cliente: rotación en pasos de 90º y, si es 90/270, escala 51.85% x 192.86%
@@ -265,7 +288,7 @@
   function alphaAt(im, px, py) {
     let data = alphaCache.get(im);
     if (!data) {
-      const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+      const c = document.createElement('canvas'); c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
       const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(im, 0, 0);
       data = x.getImageData(0, 0, c.width, c.height); alphaCache.set(im, data);
     }
@@ -288,7 +311,7 @@
     if (flip) lx = -lx;
     const u = lx + t.meta.tx, v = ly + t.meta.ty;
     if (u < 0 || v < 0 || u > t.meta.w || v > t.meta.h) return false;
-    return alphaAt(t.im, u * t.im.naturalWidth / t.meta.w, v * t.im.naturalHeight / t.meta.h) > 40;
+    return alphaAt(t.im, u * (t.im.naturalWidth || t.im.width) / t.meta.w, v * (t.im.naturalHeight || t.im.height) / t.meta.h) > 40;
   }
 
   /** Sprite visible más arriba bajo el ratón: objetos 2, luego objetos 1, luego suelo (orden inverso al de dibujo). */
@@ -326,12 +349,14 @@
   }
   function deleteSelection() {
     if (!S.sel) return;
+    pushHistory();
     S.cells[S.sel.cell][LAYER_FIELDS[S.sel.layer][0]] = 0;
     status(`Eliminado el tile ${S.sel.num} (${LAYER_NAMES[S.sel.layer]}) de la celda ${S.sel.cell}`);
     S.sel = null; S.dirty = true; showSelection(); render();
   }
   function flipSelection() {
     if (!S.sel) return;
+    pushHistory();
     const f = LAYER_FIELDS[S.sel.layer][1]; S.cells[S.sel.cell][f] = !S.cells[S.sel.cell][f];
     S.dirty = true; showSelection(); render();
   }
@@ -397,6 +422,11 @@
       ctx.fillStyle = '#d8893c'; ctx.beginPath(); ctx.arc(p.x, p.y - 18, 7, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#1b1206'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('N', p.x, p.y - 15);
     }
+    if (S.region) for (const i of S.region) { if (!pos[i]) continue; diamond(pos[i].x, pos[i].y); ctx.fillStyle = 'rgba(120,200,255,.28)'; ctx.fill(); }
+    if (S.drag) {
+      const d = S.drag; ctx.setLineDash([6 / S.view.scale, 4 / S.view.scale]); ctx.strokeStyle = d.purpose === 'region' ? '#7cc8ff' : '#ffd27a';
+      ctx.lineWidth = 1.5 / S.view.scale; ctx.strokeRect(Math.min(d.x0, d.x1), Math.min(d.y0, d.y1), Math.abs(d.x1 - d.x0), Math.abs(d.y1 - d.y0)); ctx.setLineDash([]);
+    }
     if (S.sel && pos[S.sel.cell]) {
       diamond(pos[S.sel.cell].x, pos[S.sel.cell].y);
       ctx.fillStyle = 'rgba(255,210,122,.35)'; ctx.fill();
@@ -425,11 +455,13 @@
     const c = S.cells[i], erase = e.button === 2;
     switch (S.mode) {
       case 'paint': {
+        const layer = $('#paintLayer').value;
+        if (S.tool === 'pick' || e.altKey) { pickTile(i, layer); return; }
         if (!S.tile && !erase) return;
-        const layer = $('#paintLayer').value, num = erase ? 0 : S.tile.num, flip = $('#paintFlip').checked;
-        if (layer === 'g') { c.layerGroundNum = num; c.layerGroundFlip = flip; }
-        else if (layer === 'o1') { c.layerObject1Num = num; c.layerObject1Flip = flip; }
-        else { c.layerObject2Num = num; c.layerObject2Flip = flip; }
+        const num = erase ? 0 : S.tile.num, flip = $('#paintFlip').checked;
+        if (S.tool === 'fill') floodFill(i, layer, num, flip);
+        else if (S.tool === 'brush') for (const j of brushCells(i, +$('#brushSize').value)) paintCell(j, layer, num, flip);
+        else return; // el rectángulo se aplica al soltar el ratón
         break;
       }
       case 'cells':
@@ -463,6 +495,104 @@
     render();
   }
 
+  // ---------------------------------------------------------------- herramientas de pintura
+  const LAYER_NUM = { g: 'layerGroundNum', o1: 'layerObject1Num', o2: 'layerObject2Num' };
+  const LAYER_FLIP = { g: 'layerGroundFlip', o1: 'layerObject1Flip', o2: 'layerObject2Flip' };
+  const neighbours = i => { const w = S.map.width, n = S.cells.length; return [i - w, i - w + 1, i + w - 1, i + w].filter(j => j >= 0 && j < n); };
+
+  function paintCell(i, layer, num, flip) {
+    const c = S.cells[i]; if (!c || !c.active) return;
+    c[LAYER_NUM[layer]] = num; c[LAYER_FLIP[layer]] = num ? flip : false;
+  }
+  /** Celdas a distancia < radio en la rejilla (1 = solo la celda). */
+  function brushCells(i, size) {
+    const out = new Set([i]); let frontier = [i];
+    for (let r = 1; r < size; r++) { const next = []; for (const a of frontier) for (const b of neighbours(a)) if (!out.has(b)) { out.add(b); next.push(b); } frontier = next; }
+    return out;
+  }
+  /** Relleno: todas las celdas conectadas que tengan el mismo tile en esa capa. */
+  function floodFill(i, layer, num, flip) {
+    const key = LAYER_NUM[layer], target = S.cells[i][key];
+    if (target === num) return;
+    const seen = new Set([i]), stack = [i];
+    while (stack.length) {
+      const a = stack.pop(); paintCell(a, layer, num, flip);
+      for (const b of neighbours(a)) if (!seen.has(b) && S.cells[b].active && S.cells[b][key] === target) { seen.add(b); stack.push(b); }
+    }
+    status(`Relleno: ${seen.size} celdas.`);
+  }
+  function pickTile(i, layer) {
+    const num = S.cells[i][LAYER_NUM[layer]];
+    if (!num) { status('Esa celda no tiene tile en la capa elegida.'); return; }
+    setTile(layer === 'g' ? 'g' : 'o', num);
+    $('#paintFlip').checked = !!S.cells[i][LAYER_FLIP[layer]];
+    status(`Cuentagotas: tile ${num}.`);
+  }
+  function setTile(kind, num) {
+    S.tile = { kind, num };
+    const rec = loadList('recent').filter(x => x !== kind + num); rec.unshift(kind + num); saveList('recent', rec.slice(0, 40));
+    document.querySelectorAll('.tile').forEach(x => x.classList.toggle('sel', x.dataset.kind === kind && +x.dataset.num === num));
+  }
+  function setTool(tool) {
+    S.tool = tool;
+    document.querySelectorAll('#paintTools button').forEach(b => b.classList.toggle('on', b.dataset.tool === tool));
+  }
+
+  // rectángulo de arrastre (pintar zona o seleccionar zona) en coordenadas del mapa
+  function worldAt(clientX, clientY) {
+    const r = cv.getBoundingClientRect();
+    return { x: (clientX - r.left - S.view.ox) / S.view.scale, y: (clientY - r.top - S.view.oy) / S.view.scale };
+  }
+  function cellsInDrag(d) {
+    const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1), out = [];
+    S.cells.forEach((c, i) => { if (c.active && S.pos[i].x >= x0 && S.pos[i].x <= x1 && S.pos[i].y >= y0 && S.pos[i].y <= y1) out.push(i); });
+    return out;
+  }
+
+  // ---------------------------------------------------------------- copiar / pegar zonas
+  const COPY_FIELDS = ['layerGroundNum', 'layerGroundRot', 'layerGroundFlip', 'groundLevel', 'groundSlope', 'movement', 'lineOfSight',
+    'layerObject1Num', 'layerObject1Rot', 'layerObject1Flip', 'layerObject2Num', 'layerObject2Flip', 'layerObject2Interactive'];
+  // posiciones sin alturas: la rejilla es la misma en cualquier mapa del mismo ancho
+  const basePos = () => C.cellPositions(S.cells.map(() => ({ groundLevel: 7 })), S.map.width);
+  function copyRegion() {
+    if (!S.region || !S.region.size) { status('Selecciona antes una zona (Mayús + arrastrar en modo Seleccionar).'); return; }
+    const bp = basePos(), ids = [...S.region];
+    // referencia = una celda real (la de más arriba y a la izquierda): así los desplazamientos caen en la rejilla
+    const anchor = ids.reduce((a, i) => (bp[i].y < bp[a].y || (bp[i].y === bp[a].y && bp[i].x < bp[a].x)) ? i : a, ids[0]);
+    const ax = bp[anchor].x, ay = bp[anchor].y;
+    const items = ids.map(i => ({ dx: bp[i].x - ax, dy: bp[i].y - ay, c: Object.fromEntries(COPY_FIELDS.map(f => [f, S.cells[i][f]])) }));
+    try { localStorage.setItem('mapeditor.clipboard', JSON.stringify(items)); } catch (e) {}
+    S.clipboard = items;
+    status(`Copiadas ${items.length} celdas. Ctrl+V para pegarlas donde esté el ratón (también en otro mapa).`);
+  }
+  function pasteRegion() {
+    let items = S.clipboard;
+    if (!items) try { items = JSON.parse(localStorage.getItem('mapeditor.clipboard')); } catch (e) {}
+    if (!items || !items.length) { status('No hay nada copiado.'); return; }
+    if (S.hover < 0) { status('Pon el ratón sobre la celda donde quieres pegar.'); return; }
+    pushHistory();
+    const bp = basePos(), ax = bp[S.hover].x, ay = bp[S.hover].y, lookup = new Map(bp.map((p, i) => [Math.round(p.x * 2) + ',' + Math.round(p.y * 2), i]));
+    let n = 0; const pasted = new Set();
+    for (const it of items) {
+      const j = lookup.get(Math.round((ax + it.dx) * 2) + ',' + Math.round((ay + it.dy) * 2));
+      if (j === undefined || !S.cells[j].active) continue;
+      Object.assign(S.cells[j], it.c); pasted.add(j); n++;
+    }
+    S.pos = C.cellPositions(S.cells, S.map.width); S.region = pasted; S.dirty = true; render();
+    status(`Pegadas ${n} de ${items.length} celdas.`);
+  }
+  function clearRegion() {
+    if (!S.region || !S.region.size) return false;
+    pushHistory();
+    for (const i of S.region) Object.assign(S.cells[i], { layerObject1Num: 0, layerObject2Num: 0, layerObject1Flip: false, layerObject2Flip: false });
+    S.dirty = true; render(); status(`Vaciados los objetos de ${S.region.size} celdas (el suelo se conserva).`);
+    return true;
+  }
+
+  // ---------------------------------------------------------------- favoritos / recientes
+  function loadList(k) { try { return JSON.parse(localStorage.getItem('mapeditor.' + k)) || []; } catch (e) { return []; } }
+  function saveList(k, v) { try { localStorage.setItem('mapeditor.' + k, JSON.stringify(v)); } catch (e) {} }
+
   // ---------------------------------------------------------------- vista
   function resize() {
     const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
@@ -479,12 +609,50 @@
   }
 
   // ---------------------------------------------------------------- paneles
-  function buildPalette() {
-    const layer = $('#paintLayer').value === 'g' ? 'g' : 'o';
-    const q = $('#tileSearch').value.trim();
-    const nums = Object.keys(S.index[layer]).filter(n => !q || n.startsWith(q)).sort((a, b) => a - b).slice(0, 600);
-    $('#palette').innerHTML = nums.map(n => `<div class="tile" data-kind="${layer}" data-num="${n}"><img loading="lazy" src="/assets/${layer}/${n}.svg"><small>${n}</small></div>`).join('')
-      + (nums.length === 600 ? '<p>Se muestran 600; filtra por número para ver más.</p>' : '');
+  const CATS = {
+    g: [['all', 'Todos los suelos'], ['zone', 'En esta zona'], ['fav', '★ Favoritos'], ['recent', 'Recientes'],
+        ['walkable', 'Caminables'], ['blocked', 'De zonas bloqueadas'], ['background', 'Fondos'], ['unused', 'Sin usar']],
+    o: [['all', 'Todos los objetos'], ['zone', 'En esta zona'], ['fav', '★ Favoritos'], ['recent', 'Recientes'],
+        ['floor', 'Decorado de suelo'], ['deco', 'Decorativos (no bloquean)'], ['obstacle', 'Obstáculos'],
+        ['wall', 'Muros (tapan visión)'], ['tall', 'Árboles y altos'], ['unused', 'Sin usar']],
+  };
+  function fillCategories() {
+    const kind = $('#paintLayer').value === 'g' ? 'g' : 'o', sel = $('#paletteCat'), prev = sel.value;
+    sel.innerHTML = CATS[kind].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    if (CATS[kind].some(([v]) => v === prev)) sel.value = prev;
+  }
+  /** Tiles usados en los mapas de la zona del mapa actual (y en el propio mapa). */
+  async function loadZoneTiles() {
+    const ref = S.map && (S.map.id || S.map.basedOn);
+    const z = ref ? (S.zone || await api('/api/zone/' + ref).catch(() => ({ maps: [] }))) : { maps: [] };
+    if (ref && !S.zone) S.zone = z;
+    const t = { g: new Map(), o: new Map() };
+    for (const m of [...z.maps, { cells: S.cells }])
+      for (const c of m.cells) {
+        if (!c.active) continue;
+        if (c.layerGroundNum) t.g.set(c.layerGroundNum, (t.g.get(c.layerGroundNum) || 0) + 1);
+        for (const o of [c.layerObject1Num, c.layerObject2Num]) if (o) t.o.set(o, (t.o.get(o) || 0) + 1);
+      }
+    S.zoneTiles = t;
+  }
+  async function buildPalette() {
+    const kind = $('#paintLayer').value === 'g' ? 'g' : 'o', cat = $('#paletteCat').value || 'all', q = $('#tileSearch').value.trim();
+    const stats = (S.stats && S.stats[kind]) || {}, favs = new Set(loadList('fav')), rec = loadList('recent');
+    let nums;
+    if (cat === 'zone') {
+      if (!S.map) { $('#palette').innerHTML = '<p>Carga un mapa para ver los tiles de su zona.</p>'; return; }
+      if (!S.zoneTiles) { $('#palette').innerHTML = '<p>Buscando los tiles de la zona…</p>'; await loadZoneTiles(); }
+      nums = [...S.zoneTiles[kind].entries()].sort((a, b) => b[1] - a[1]).map(([n]) => String(n)).filter(n => S.index[kind][n]);
+    } else if (cat === 'recent') nums = rec.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
+    else {
+      nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (cat === 'fav' ? favs.has(kind + n) : (stats[n] || {}).cat === cat));
+      nums.sort((a, b) => ((stats[b] || {}).n || 0) - ((stats[a] || {}).n || 0) || a - b); // lo más usado primero
+    }
+    if (q) nums = nums.filter(n => n.startsWith(q));
+    const total = nums.length; nums = nums.slice(0, 400);
+    $('#palette').innerHTML = nums.map(n => `<div class="tile${S.tile && S.tile.kind === kind && S.tile.num === +n ? ' sel' : ''}" data-kind="${kind}" data-num="${n}" title="Tile ${n} · usado ${(stats[n] || {}).n || 0} veces · clic derecho: favorito">`
+      + `${favs.has(kind + n) ? '<span class="fav">★</span>' : ''}<img loading="lazy" src="/assets/${kind}/${n}.svg"><small class="n">${n}</small></div>`).join('')
+      + (total > 400 ? `<p>Se muestran 400 de ${total}; filtra por número o categoría.</p>` : !total ? '<p>No hay tiles en esta categoría.</p>' : '');
   }
   function buildNpcList() {
     const q = $('#npcSearch').value.trim();
@@ -522,6 +690,7 @@
     }
     if (!S.zone.maps.length) { status('No hay mapas de la misma zona y tamaño para aprender.'); return; }
     const seed = +$('#genSeed').value || 1;
+    pushHistory();
     const template = { width: S.map.width, cells: S.original.cells, scriptedCells: S.map.scriptedCells, npcCells: S.npcs.map(n => n.cellid) };
     const g = window.MapGenerator.generate(S.zone.maps, template, seed);
     S.cells = g.cells; S.pos = C.cellPositions(S.cells, S.map.width);
@@ -546,13 +715,20 @@
   let searchT; $('#mapSearch').addEventListener('input', e => { clearTimeout(searchT); searchT = setTimeout(() => loadMapList(e.target.value.trim()), 250); });
   $('#modes').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.mode); });
   ['#lyG', '#lyO1', '#lyO2', '#lyGrid'].forEach(s => $(s).addEventListener('change', render));
-  $('#paintLayer').addEventListener('change', buildPalette);
+  $('#paintLayer').addEventListener('change', () => { fillCategories(); buildPalette(); });
+  $('#paletteCat').addEventListener('change', buildPalette);
+  $('#paintTools').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTool(b.dataset.tool); });
+  $('#palette').addEventListener('contextmenu', e => {
+    const t = e.target.closest('.tile'); if (!t) return; e.preventDefault();
+    const k = t.dataset.kind + t.dataset.num, favs = loadList('fav'), on = favs.includes(k);
+    saveList('fav', on ? favs.filter(x => x !== k) : [...favs, k]); buildPalette();
+    status(on ? `Tile ${t.dataset.num} quitado de favoritos.` : `Tile ${t.dataset.num} añadido a favoritos.`);
+  });
   $('#tileSearch').addEventListener('input', buildPalette);
   $('#npcSearch').addEventListener('input', buildNpcList);
   $('#palette').addEventListener('click', e => {
     const t = e.target.closest('.tile'); if (!t) return;
-    S.tile = { kind: t.dataset.kind, num: +t.dataset.num };
-    document.querySelectorAll('.tile').forEach(x => x.classList.toggle('sel', x === t));
+    setTile(t.dataset.kind, +t.dataset.num);
   });
   $('#npcList').addEventListener('click', e => {
     const t = e.target.closest('.npcItem'); if (!t) return;
@@ -566,19 +742,39 @@
   cv.addEventListener('contextmenu', e => e.preventDefault());
   cv.addEventListener('mousedown', e => {
     if (e.button === 1 || S.space) { S.pan = { x: e.clientX, y: e.clientY, ox: S.view.ox, oy: S.view.oy }; e.preventDefault(); return; }
-    if (S.mode === 'select') { if (e.button === 0) { S.sel = spriteAt(e.clientX, e.clientY); showSelection(); render(); } return; }
+    const w = worldAt(e.clientX, e.clientY);
+    if (S.mode === 'select') {
+      if (e.button !== 0) return;
+      if (e.shiftKey) { S.drag = { x0: w.x, y0: w.y, x1: w.x, y1: w.y, purpose: 'region' }; return; }
+      S.region = null; S.sel = spriteAt(e.clientX, e.clientY); showSelection(); render(); return;
+    }
+    if (S.mode === 'paint' && S.tool === 'rect' && !e.altKey) { pushHistory(); S.drag = { x0: w.x, y0: w.y, x1: w.x, y1: w.y, purpose: 'paint', erase: e.button === 2 }; return; }
+    if (['paint', 'cells', 'fight', 'exits', 'npc'].includes(S.mode) && !(S.mode === 'paint' && (S.tool === 'pick' || e.altKey))) pushHistory();
     applyAt(cellAt(e.clientX, e.clientY), e);
   });
-  window.addEventListener('mouseup', () => { S.pan = null; });
+  window.addEventListener('mouseup', () => {
+    S.pan = null;
+    if (!S.drag) return;
+    const d = S.drag, cells = cellsInDrag(d); S.drag = null;
+    if (d.purpose === 'region') { S.region = new Set(cells); status(`Zona de ${cells.length} celdas. Ctrl+C copiar · Supr vaciar.`); }
+    else if (d.purpose === 'paint') {
+      const layer = $('#paintLayer').value, flip = $('#paintFlip').checked;
+      if (!S.tile && !d.erase) { status('Elige antes un tile en la paleta.'); render(); return; }
+      for (const i of cells) paintCell(i, layer, d.erase ? 0 : S.tile.num, flip);
+      S.dirty = true; status(`Rectángulo: ${cells.length} celdas.`);
+    }
+    render();
+  });
   cv.addEventListener('mousemove', e => {
     if (S.pan) { S.view.ox = S.pan.ox + e.clientX - S.pan.x; S.view.oy = S.pan.oy + e.clientY - S.pan.y; render(); return; }
+    if (S.drag) { const w = worldAt(e.clientX, e.clientY); S.drag.x1 = w.x; S.drag.y1 = w.y; render(); }
     const i = cellAt(e.clientX, e.clientY);
     if (i !== S.hover) {
       S.hover = i; render();
       const c = S.cells[i];
       $('#hover').textContent = i < 0 ? '' : `celda ${i} · suelo ${c.layerGroundNum} · obj1 ${c.layerObject1Num} · obj2 ${c.layerObject2Num} · nivel ${c.groundLevel} · ${c.movement ? 'caminable' : 'bloqueada'}${c.lineOfSight ? '' : ' · sin visión'}`;
     }
-    if (e.buttons === 1 && S.mode === 'paint') applyAt(i, e);
+    if (e.buttons === 1 && S.mode === 'paint' && S.tool === 'brush' && !e.altKey && !S.drag) applyAt(i, e);
   });
   cv.addEventListener('wheel', e => {
     e.preventDefault();
@@ -590,7 +786,13 @@
   window.addEventListener('keydown', e => {
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return; // no interferir al escribir en campos
     if (e.code === 'Space') { S.space = true; e.preventDefault(); }
-    if (S.mode === 'select' && (e.key === 'Delete' || e.key === 'Backspace')) { deleteSelection(); e.preventDefault(); }
+    const k = e.key.toLowerCase(), ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && k === 'z' && !e.shiftKey) { undo(); e.preventDefault(); return; }
+    if (ctrl && (k === 'y' || (k === 'z' && e.shiftKey))) { redo(); e.preventDefault(); return; }
+    if (ctrl && k === 'c') { copyRegion(); e.preventDefault(); return; }
+    if (ctrl && k === 'v') { pasteRegion(); e.preventDefault(); return; }
+    if (S.mode === 'paint' && !ctrl) { const t = { b: 'brush', r: 'rect', g: 'fill', i: 'pick' }[k]; if (t) setTool(t); }
+    if (S.mode === 'select' && (e.key === 'Delete' || e.key === 'Backspace')) { if (!clearRegion()) deleteSelection(); e.preventDefault(); }
     if (S.mode === 'select' && e.key.toLowerCase() === 'f') flipSelection();
   });
   $('#btnSelDel').addEventListener('click', deleteSelection);
@@ -603,7 +805,7 @@
   });
   $('#btnNew').addEventListener('click', newMap);
   $('#btnAutoLink').addEventListener('click', () => autoLink().catch(err => status('Error al enlazar: ' + err.message)));
-  $('#exitList').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.exits = S.exits.filter(x => x.cell !== +b.dataset.cell); S.dirty = true; renderExitList(); render(); });
+  $('#exitList').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; pushHistory(); S.exits = S.exits.filter(x => x.cell !== +b.dataset.cell); S.dirty = true; renderExitList(); render(); });
   $('#lyBg').addEventListener('change', render);
   $('#btnExport').addEventListener('click', openExport);
   $('#expOverwrite').addEventListener('click', () => doExport(false).catch(err => status('Error al exportar: ' + err.message)));

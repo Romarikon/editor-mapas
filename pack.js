@@ -37,6 +37,8 @@ function copyDir(src, dst) {
   fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
   fs.writeFileSync(path.join(__dirname, 'data', 'maps-pack.json'), JSON.stringify(pack));
   console.log(`  ${pack.maps.length} mapas, ${Object.keys(pack.npcs).length} mapas con NPC, ${Object.keys(pack.scripted).length} con celdas de acción`);
+  console.log('Estadísticas de tiles para la paleta…');
+  execFileSync(process.execPath, [path.join(__dirname, 'tile-stats.js')], { stdio: 'inherit' });
 
   console.log('Armando', DIST);
   fs.rmSync(DIST, { recursive: true, force: true });

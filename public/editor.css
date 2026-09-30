@@ -57,3 +57,11 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .exitItem { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 5px; }
 .exitItem:hover { background: #3a3120; }
 .exitItem button { padding: 2px 7px; }
+.tools { gap: 4px; padding: 8px 8px 0; }
+.tools button { flex: 1; padding: 5px 4px; }
+.row select { margin-right: 0; }
+.grow { flex: 1; min-width: 0; }
+.tile { position: relative; }
+.tile .fav { position: absolute; top: 3px; right: 5px; color: #f0c060; font-size: 12px; }
+.tile small.n { color: var(--soft); font-size: 10px; }
+#selRegionInfo { margin: 6px 12px; color: var(--soft); }
