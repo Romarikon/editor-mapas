@@ -73,3 +73,7 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 #ctxMenu .t { color: var(--soft); cursor: default; font-size: 11px; }
 #ctxMenu .t:hover { background: none; }
 .tile.dragover { outline: 2px dashed var(--accent); }
+
+.soft { color: var(--soft); margin: 6px 0; line-height: 1.5; }
+label.field { display: flex; flex-direction: column; color: var(--soft); margin: 6px 0; }
+label.field select { margin: 4px 0; }

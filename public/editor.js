@@ -705,6 +705,50 @@
   }
   function status(t) { $('#status').textContent = t; }
 
+  // ---------------------------------------------------------------- pesadilla / sueño febril
+  const DREAM_HINT = {
+    nightmare: 'Cada suelo y objeto se sustituye por uno del tema oscuro de la misma categoría y tamaño (siempre el mismo por tile, para que muros y caminos sigan continuos). Menos decoración viva, restos del tema y fondo oscuro.',
+    fever: 'Pesadilla + objetos de otras zonas donde no deberían estar, suelos girados y deformados, terreno roto, objetos que se atraviesan, fragmentos repetidos en espejo y un fondo imposible. Se reparan los caminos para que siga siendo jugable.',
+  };
+  async function openDream() {
+    if (!S.map) { status('Carga primero un mapa.'); return; }
+    if (!S.themes) S.themes = await api('/api/themes');
+    const sel = $('#dreamTheme');
+    if (!sel.options.length) sel.innerHTML = '<option value="auto">Automático (al azar según la semilla)</option>' + S.themes.map(t => `<option value="${t.key}">${t.name}</option>`).join('');
+    updateDreamHint();
+    $('#dreamDlg').showModal();
+  }
+  function updateDreamHint() {
+    const k = $('#dreamKind').value;
+    $('#dreamIntensityRow').hidden = k !== 'fever';
+    $('#dreamHint').textContent = DREAM_HINT[k];
+  }
+  async function applyDream(again = false) {
+    const kind = $('#dreamKind').value, seed = +$('#genSeed').value || 1;
+    let theme = $('#dreamTheme').value;
+    if (theme === 'auto') theme = S.themes[seed % S.themes.length].key;
+    S.themeCache = S.themeCache || {};
+    const ck = theme + ':' + S.map.width + 'x' + S.map.height;
+    if (!S.themeCache[ck]) { status('Aprendiendo el tema oscuro…'); S.themeCache[ck] = await api(`/api/theme/${theme}?w=${S.map.width}&h=${S.map.height}`); }
+    const th = S.themeCache[ck];
+    if (!th.maps.length) { status(`El tema «${th.name}» no tiene mapas de ${S.map.width}×${S.map.height}.`); return; }
+    if (!again) S.preDream = snapshot(); else if (S.preDream) restore(S.preDream);
+    pushHistory();
+    const protect = [...new Set([...(S.map.scriptedCells || []), ...S.exits.map(e => e.cell), ...S.npcs.map(p => p.cellid)])];
+    const allBackgrounds = Object.entries((S.stats && S.stats.g) || {}).filter(([, v]) => v.cat === 'background').map(([id]) => +id);
+    const opts = { seed, stats: S.stats || { g: {}, o: {} }, index: S.index, protect, intensity: +$('#dreamIntensity').value, allBackgrounds };
+    const tpl = { width: S.map.width, cells: S.cells };
+    const out = kind === 'fever' ? window.MapGenerator.fever(tpl, th.maps, opts) : window.MapGenerator.nightmare(tpl, th.maps, opts);
+    S.cells = out.cells; S.pos = C.cellPositions(S.cells, S.map.width);
+    if (out.bgID) { $('#metaForm').bgID.value = out.bgID; }
+    S.generated = true; S.dirty = true; $('#btnSave').disabled = true; S.sel = null; showSelection();
+    render();
+    const st = out.stats;
+    status(kind === 'fever'
+      ? `Sueño febril (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.strange} objetos fuera de lugar, ${st.ghosts} fantasmas, ${st.rotated} suelos girados, ${st.raised} celdas de terreno roto, ${st.mirrored} en espejo${st.carved ? ', ' + st.carved + ' abiertas para unir zonas' : ''}.`
+      : `Pesadilla (${th.name}, semilla ${seed}): ${st.swapped} tiles cambiados, ${st.thinned} decoraciones quitadas, ${st.debris} restos añadidos (aprendido de ${st.themeMaps} mapas).`);
+  }
+
   // ---------------------------------------------------------------- generación
   async function generate() {
     if (!S.map) { status("Carga primero un mapa de la lista de la izquierda."); return; }
@@ -878,6 +922,11 @@
     status(`Pintando con el tile ${S.tile.num} (${LAYER_NAMES[S.sel.layer]})`);
   });
   $('#btnNew').addEventListener('click', newMap);
+  $('#btnDream').addEventListener('click', () => openDream().catch(err => status('Error: ' + err.message)));
+  $('#dreamKind').addEventListener('change', updateDreamHint);
+  $('#dreamApply').addEventListener('click', () => { $('#dreamDlg').close(); applyDream().catch(err => status('Error al transformar: ' + err.message)); });
+  $('#dreamAgain').addEventListener('click', () => { $('#genSeed').value = (+$('#genSeed').value || 0) + 1; $('#dreamDlg').close(); applyDream(true).catch(err => status('Error al transformar: ' + err.message)); });
+  $('#dreamClose').addEventListener('click', () => $('#dreamDlg').close());
   $('#btnAutoLink').addEventListener('click', () => autoLink().catch(err => status('Error al enlazar: ' + err.message)));
   $('#exitList').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; pushHistory(); S.exits = S.exits.filter(x => x.cell !== +b.dataset.cell); S.dirty = true; renderExitList(); render(); });
   $('#lyBg').addEventListener('change', render);

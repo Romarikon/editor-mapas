@@ -20,6 +20,9 @@ base de datos.
 - **NPC**: colocar plantillas de NPC.
 - **Nuevo** mapa desde cero y **Generar variante**: rehace el interior aprendiendo suelos, decoración y
   obstáculos de los mapas de la misma zona, sin bloquear salidas ni celdas con acción.
+- **Pesadilla / Sueño febril**: reviste un mapa con la paleta de un tema oscuro real (cementerio, Brakmar,
+  pantano, tierras devastadas) conservando su estructura; el sueño febril añade incoherencias (objetos fuera de
+  lugar, suelos deformados, terreno roto, objetos atravesables, fragmentos en espejo) sin romper los caminos.
 - **Archivos `.dmap.json`** para compartir mapas.
 
 ## Requisitos

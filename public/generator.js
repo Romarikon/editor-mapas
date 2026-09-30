@@ -254,5 +254,127 @@
     return carved;
   }
 
-  root.MapGenerator = { generate, generatePatterns, learn, outerRegion };
+  // ================================================================= transformaciones temáticas
+  // PESADILLA: conserva la estructura (caminable, visión, alturas, muros y salidas) y reviste el mapa con la paleta
+  // de un tema oscuro real (cementerio, Brakmar, pantano, tierras devastadas). Cada tile original se sustituye SIEMPRE
+  // por el mismo tile del tema, de su misma categoría y tamaño parecido: los muros continuos siguen siendo continuos.
+  // SUEÑO FEBRIL: pesadilla + incoherencias controladas (objetos de otras zonas, suelos girados que el cliente deforma,
+  // terreno roto, objetos atravesables, fragmentos repetidos en espejo, fondo imposible). Sigue siendo jugable.
+  const LAYERS = [['layerGroundNum', 'g'], ['layerObject1Num', 'o'], ['layerObject2Num', 'o']];
+
+  function themePalette(themeMaps) {
+    const use = { g: new Map(), o: new Map() }, bg = new Map(), floorDeco = new Map();
+    let walk = 0, o1 = 0;
+    for (const m of themeMaps) {
+      for (const c of m.cells) {
+        if (!c.active) continue;
+        if (c.layerGroundNum) bump(use.g, c.layerGroundNum);
+        if (c.layerObject1Num) bump(use.o, c.layerObject1Num);
+        if (c.layerObject2Num) bump(use.o, c.layerObject2Num);
+        if (c.movement) { walk++; if (c.layerObject1Num) { o1++; bump(floorDeco, c.layerObject1Num); } }
+      }
+      if (m.bgID) bump(bg, m.bgID);
+    }
+    return { use, bg, floorDeco, decoRatio: walk ? o1 / walk : 0.05 };
+  }
+
+  /** Sustituto de un tile: misma categoría (según su uso real en todos los mapas) y tamaño parecido, ponderado por uso en el tema. */
+  function makeMapper(pal, stats, index, r) {
+    const cache = new Map();
+    return (kind, num) => {
+      if (!num) return 0;
+      const key = kind + num;
+      if (cache.has(key)) return cache.get(key);
+      const cat = ((stats[kind] || {})[num] || {}).cat, me = index[kind][num] || { w: 50, h: 50 };
+      const cands = [];
+      for (const [id, n] of pal.use[kind]) {
+        if (((stats[kind] || {})[id] || {}).cat !== cat) continue;
+        const o = index[kind][id]; if (!o) continue;
+        const size = Math.abs(Math.log((o.w * o.h + 1) / (me.w * me.h + 1)));
+        cands.push([id, n / (1 + size * 3)]);
+      }
+      let out = num;
+      if (cands.length) { cands.sort((a, b) => b[1] - a[1]); const top = cands.slice(0, 6); out = pick(r, new Map(top)); }
+      cache.set(key, out);
+      return out;
+    };
+  }
+
+  function nightmare(template, themeMaps, opts) {
+    const r = rng(opts.seed), w = template.width, n = template.cells.length;
+    const cells = template.cells.map(c => ({ ...c }));
+    const pal = themePalette(themeMaps), map = makeMapper(pal, opts.stats, opts.index, r);
+    let swapped = 0, thinned = 0, debris = 0;
+    for (const c of cells) {
+      if (!c.active) continue;
+      for (const [f, kind] of LAYERS) { const nv = map(kind, c[f]); if (nv !== c[f]) { c[f] = nv; swapped++; } }
+    }
+    // menos vida: se quita parte del decorado de suelo y se siembran restos del tema (huesos, escombros…)
+    const protect = new Set(opts.protect || []);
+    for (let i = 0; i < n; i++) {
+      const c = cells[i];
+      if (!c.active || !c.movement || protect.has(i)) continue;
+      if (c.layerObject1Num && r() < 0.3) { c.layerObject1Num = 0; thinned++; }
+      else if (!c.layerObject1Num && !c.layerObject2Num && pal.floorDeco.size && r() < pal.decoRatio * 0.8) {
+        c.layerObject1Num = pick(r, pal.floorDeco); c.layerObject1Flip = r() < 0.5; debris++;
+      }
+    }
+    const bg = pal.bg.size ? pick(r, pal.bg) : 0;
+    return { cells, bgID: bg, stats: { swapped, thinned, debris, themeMaps: themeMaps.length } };
+  }
+
+  function fever(template, themeMaps, opts) {
+    const base = nightmare(template, themeMaps, opts);
+    const r = rng(opts.seed * 7919 + 13), w = template.width, cells = base.cells, n = cells.length, k = Math.max(1, Math.min(3, opts.intensity | 0 || 2));
+    const outer = outerRegion(cells, w), protect = new Set((opts.protect || []).flatMap(i => [i, ...neigh(i, w, n)]));
+    const interior = []; cells.forEach((c, i) => { if (c.active && !outer[i] && !protect.has(i)) interior.push(i); });
+    const any = kind => { const ids = Object.keys(opts.index[kind]); return +ids[(r() * ids.length) | 0]; };
+    const cat = (kind, id) => ((opts.stats[kind] || {})[id] || {}).cat;
+    const st = { rotated: 0, strange: 0, ghosts: 0, raised: 0, mirrored: 0 };
+
+    // 1) suelos girados: el cliente los aplasta al 51% / estira al 193% al girarlos 90º → aspecto deformado
+    for (const i of interior) { const c = cells[i]; if (c.groundSlope === 1 && r() < 0.1 * k) { c.layerGroundRot = 1 + ((r() * 3) | 0); st.rotated++; } }
+    // 2) objetos que no deberían estar aquí (de cualquier zona del juego), sin cambiar si se puede pasar
+    for (const i of interior) {
+      const c = cells[i];
+      if (!c.movement && c.layerObject2Num && r() < 0.12 * k) { let o; for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco', 'obstacle'].includes(cat('o', o))) break; } c.layerObject2Num = o; st.strange++; }
+    }
+    // 3) objetos fantasma: cosas grandes sobre celdas caminables… que se atraviesan
+    for (const i of interior) {
+      const c = cells[i];
+      if (c.movement && !c.layerObject2Num && r() < 0.02 * k) { let o; for (let t = 0; t < 20; t++) { o = any('o'); if (['tall', 'deco'].includes(cat('o', o))) break; } c.layerObject2Num = o; c.layerObject2Flip = r() < 0.5; st.ghosts++; }
+    }
+    // 4) terreno roto: parches de 3-6 celdas que suben o bajan de nivel
+    for (let p = 0; p < 2 * k && interior.length; p++) {
+      const seed = interior[(r() * interior.length) | 0], patch = [seed], delta = (r() < 0.5 ? -1 : 1) * (1 + ((r() * k) | 0));
+      while (patch.length < 3 + ((r() * 4) | 0)) { const nb = neigh(patch[(r() * patch.length) | 0], w, n).filter(j => interior.includes(j)); if (!nb.length) break; patch.push(nb[(r() * nb.length) | 0]); }
+      for (const i of new Set(patch)) { const c = cells[i]; if (c.groundSlope !== 1) continue; c.groundLevel = Math.max(1, Math.min(14, c.groundLevel + delta)); st.raised++; }
+    }
+    // 5) fragmentos repetidos en espejo: un trozo del mapa copiado en otro sitio, volteado
+    const pos = root.MapCodec.cellPositions(cells.map(() => ({ groundLevel: 7 })), w);
+    const lookup = new Map(pos.map((q, i) => [Math.round(q.x * 2) + ',' + Math.round(q.y * 2), i]));
+    for (let p = 0; p < k && interior.length > 20; p++) {
+      const a = interior[(r() * interior.length) | 0], b = interior[(r() * interior.length) | 0];
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        if ((dx + dy) % 2) continue; // puntos de la rejilla isométrica
+        const src = lookup.get(Math.round((pos[a].x + dx * 26.5) * 2) + ',' + Math.round((pos[a].y + dy * 13.5) * 2));
+        const dst = lookup.get(Math.round((pos[b].x - dx * 26.5) * 2) + ',' + Math.round((pos[b].y + dy * 13.5) * 2)); // espejo horizontal
+        if (src === undefined || dst === undefined || outer[dst] || protect.has(dst) || !cells[dst].active) continue;
+        const S = cells[src], D = cells[dst];
+        Object.assign(D, { layerGroundNum: S.layerGroundNum, layerObject1Num: S.layerObject1Num, layerObject2Num: S.layerObject2Num,
+          layerGroundFlip: !S.layerGroundFlip, layerObject1Flip: !S.layerObject1Flip, layerObject2Flip: !S.layerObject2Flip,
+          movement: S.movement, lineOfSight: S.lineOfSight });
+        st.mirrored++;
+      }
+    }
+    // 6) fondo imposible: el de otro tema
+    const bgs = opts.allBackgrounds || [];
+    const bgID = bgs.length && r() < 0.5 ? bgs[(r() * bgs.length) | 0] : base.bgID;
+    // jugable: se reparan zonas aisladas que hayan podido crear los espejos
+    const M = learn(themeMaps.length ? themeMaps : [template]);
+    st.carved = repairConnectivity(cells, w, cells.map((c, i) => i).filter(i => cells[i].active && !outer[i]), opts.protect || [], outer, M);
+    return { cells, bgID, stats: { ...base.stats, ...st } };
+  }
+
+  root.MapGenerator = { generate, generatePatterns, nightmare, fever, learn, outerRegion };
 })(typeof window !== 'undefined' ? window : globalThis);

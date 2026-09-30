@@ -9,6 +9,13 @@ const PORT = +process.env.PORT || 4600;
 // carpeta data/maps del cliente donde se escriben los SWF exportados
 const CLIENT_MAPS = process.env.CLIENT_MAPS || 'F:/Dofus_Dual/clients/Retro-1.43.7/resources/app/retroclient/data/maps';
 const NEW_MAP_MIN = 30000, NEW_MAP_MAX = 32767; // rango propio para mapas nuevos (el servidor usa short)
+// Temas oscuros para la transformación "pesadilla": subzonas reales del juego (nombres del lang maps_es del cliente)
+const THEMES = {
+  cementerio: { name: 'Cementerio', subareas: [6, 7, 59, 61, 230, 449, 467, 499, 500] },
+  brakmar: { name: 'Brakmar', subareas: [53, 72, 75, 280, 338, 492] },
+  pantano: { name: 'Pantano', subareas: [31, 232, 233, 457] },
+  devastado: { name: 'Tierras devastadas', subareas: [71, 275, 168, 455] },
+};
 const PACK = path.join(__dirname, 'data', 'maps-pack.json');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
 
@@ -54,6 +61,12 @@ function packSource() {
       return { zone: m.dungeon ? 'Mazmorra ' + m.dungeon : 'Subzona ' + subarea(m), maps: same.map(decodeRow) };
     },
     async npcTemplates() { return pack.npcTemplates; },
+    async theme(key, w, h) {
+      const t = THEMES[key]; if (!t) return null;
+      const set = new Set(t.subareas.map(String));
+      const maps = pack.maps.filter(m => m.width === w && m.height === h && set.has(String(m.mappos || '').split(',')[2])).slice(0, 150);
+      return { key, name: t.name, maps: maps.map(m => ({ ...decodeRow(m), bgID: m.bgID | 0 })) };
+    },
     async saveServerSide() { throw new Error('Modo sin conexión: guarda el mapa como archivo y pásaselo a quien tenga el servidor.'); },
     async exportMap() { throw new Error('Modo sin conexión: guarda el mapa como archivo; la exportación al juego se hace en el PC del servidor.'); },
   };
@@ -167,6 +180,12 @@ function dbSource(db) {
       return { zone: dg ? 'Mazmorra ' + dg.dungeon : 'Subzona ' + subarea, maps };
     },
     async npcTemplates() { const [rows] = await db.query('SELECT id, gfxID FROM npc_template ORDER BY id'); return rows; },
+    /** Mapas de un tema oscuro (mismo tamaño) para aprender su paleta. */
+    async theme(key, w, h) {
+      const t = THEMES[key]; if (!t) return null;
+      const [rows] = await db.query(`SELECT id, width, heigth AS height, \`key\`, mapData, places, bgID FROM maps WHERE SUBSTRING_INDEX(mappos, ',', -1) IN (${t.subareas.map(() => '?').join(',')}) AND width = ? AND heigth = ? LIMIT 150`, [...t.subareas.map(String), w, h]);
+      return { key, name: t.name, maps: rows.map(r => { try { return { ...decodeRow(r), bgID: r.bgID | 0 }; } catch (e) { return null; } }).filter(Boolean) };
+    },
     /** Casillas de combate y NPC: los envía el servidor de juego, así que funcionan sin tocar el cliente. */
     async saveServerSide(id, body) {
       const places = C.encodePlaces(body.places[0] || [], body.places[1] || []);
@@ -216,6 +235,11 @@ openSource().then(src => {
       const p = decodeURIComponent(url.pathname);
       let m;
       if (p === '/api/info') return send(res, 200, { offline: src.offline });
+      if (p === '/api/themes') return send(res, 200, Object.entries(THEMES).map(([key, t]) => ({ key, name: t.name })));
+      if ((m = p.match(/^\/api\/theme\/(\w+)$/))) {
+        const t = await src.theme(m[1], +url.searchParams.get('w') || 15, +url.searchParams.get('h') || 17);
+        return t ? send(res, 200, t) : send(res, 404, { error: 'tema desconocido' });
+      }
       if (p === '/api/export' && req.method === 'POST') {
         let body = ''; for await (const chunk of req) body += chunk;
         return send(res, 200, await src.exportMap(JSON.parse(body)));

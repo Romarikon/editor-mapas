@@ -35,6 +35,7 @@
     <select id="genAlgo" title="Algoritmo del generador"><option value="patterns">Patrones</option><option value="classic">Clásico</option></select>
     <input id="genSeed" type="number" value="1" min="1" title="Semilla (misma semilla = mismo resultado)">
     <button id="btnGenNext" title="Otra semilla">↻</button>
+    <button id="btnDream" title="Transformar el mapa actual: pesadilla (universo devastado) o sueño febril">Pesadilla…</button>
   </span>
   <span class="right">
     <span id="status"></span>
@@ -124,6 +125,26 @@
   </aside>
 </main>
 <div id="ctxMenu" hidden></div>
+<dialog id="dreamDlg">
+  <h3>Transformar el mapa</h3>
+  <p class="soft">Parte del mapa que tengas en pantalla (original o variante). Conserva muros, caminos, alturas y salidas.</p>
+  <label class="field">Tipo
+    <select id="dreamKind">
+      <option value="nightmare">Pesadilla: universo devastado</option>
+      <option value="fever">Sueño febril: pesadilla que pierde el sentido</option>
+    </select>
+  </label>
+  <label class="field">Tema oscuro <select id="dreamTheme"></select></label>
+  <label class="field" id="dreamIntensityRow">Intensidad del delirio
+    <select id="dreamIntensity"><option value="1">Leve</option><option value="2" selected>Media</option><option value="3">Delirante</option></select>
+  </label>
+  <p class="soft" id="dreamHint"></p>
+  <div class="row btns">
+    <button id="dreamApply">Transformar</button>
+    <button id="dreamAgain" title="Misma transformación con otra semilla">Otra semilla</button>
+    <button id="dreamClose">Cerrar</button>
+  </div>
+</dialog>
 <dialog id="exportDlg">
   <h3>Exportar al juego</h3>
   <div id="exportReport"></div>
