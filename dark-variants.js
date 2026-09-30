@@ -63,7 +63,7 @@ async function jpegTag(id, rgba, w, h) {
     const a = rgba[i * 4 + 3]; alpha[i] = a;
     rgb[i * 3] = (rgba[i * 4] * a / 255) | 0; rgb[i * 3 + 1] = (rgba[i * 4 + 1] * a / 255) | 0; rgb[i * 3 + 2] = (rgba[i * 4 + 2] * a / 255) | 0;
   }
-  const jpg = await sharp(rgb, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 86, chromaSubsampling: '4:4:4', mozjpeg: true }).toBuffer();
+  const jpg = await sharp(rgb, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 86, chromaSubsampling: '4:4:4', progressive: false, mozjpeg: false, optimiseCoding: true }).toBuffer(); // Flash solo admite JPEG básico (baseline) dentro de un SWF
   const hdr = Buffer.alloc(6); hdr.writeUInt16LE(id, 0); hdr.writeUInt32LE(jpg.length, 2);
   return tag(35, Buffer.concat([hdr, jpg, zlib.deflateSync(alpha, { level: 9 })]));
 }
