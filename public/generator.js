@@ -143,5 +143,116 @@
     return { cells, places, stats: { zoneMaps: zoneMaps.length, obstacles: placed, interior: interior.length, exits: keep.length } };
   }
 
-  root.MapGenerator = { generate, learn, outerRegion };
+  // ================================================================= síntesis por patrones (v2)
+  // Cada celda interior se copia de una celda REAL de la zona cuyo entorno ya generado (izquierda, arriba-izquierda,
+  // arriba-derecha y arriba: suelo, objeto 2 y si es caminable) coincide con el de la celda actual. Si no hay
+  // coincidencia exacta se relaja el entorno por niveles. Así se reproducen patrones de varias celdas (muros
+  // continuos, caminos, árboles con su sombra…). Después se reparan zonas aisladas y se colocan las casillas de combate.
+  const COPY = ['layerGroundNum', 'layerGroundFlip', 'layerGroundRot', 'layerObject1Num', 'layerObject1Flip', 'layerObject1Rot',
+    'layerObject2Num', 'layerObject2Flip', 'layerObject2Interactive', 'movement', 'lineOfSight'];
+  const feat = (c, full) => !c || !c.active ? 'x' : full ? `${c.layerGroundNum}.${c.movement ? 1 : 0}.${c.layerObject2Num}` : `${c.layerGroundNum}.${c.movement ? 1 : 0}`;
+  // niveles de exigencia: [qué vecinas, con objeto 2 o no]
+  const LEVELS = [[['L', 'UL', 'UR', 'U'], true], [['L', 'UL', 'UR'], true], [['UL', 'UR'], true], [['L', 'UL', 'UR'], false], [['UL', 'UR'], false], [['L'], false]];
+  const around = (cells, i, w) => ({ L: cells[i - 1], UL: cells[i - w], UR: cells[i - w + 1], U: cells[i - (2 * w - 1)] });
+  const keyOf = (nb, [names, full]) => names.map(k => feat(nb[k], full)).join('|');
+
+  function buildIndex(maps) {
+    const idx = LEVELS.map(() => new Map()), all = { walk: [], block: [] };
+    for (const m of maps) {
+      const w = m.width, cells = m.cells, outer = outerRegion(cells, w);
+      cells.forEach((c, i) => {
+        if (!c.active || outer[i]) return;
+        const nb = around(cells, i, w);
+        LEVELS.forEach((lv, k) => { const key = keyOf(nb, lv); let a = idx[k].get(key); if (!a) idx[k].set(key, a = []); a.push(c); });
+        (c.movement ? all.walk : all.block).push(c);
+      });
+    }
+    return { idx, all };
+  }
+
+  function generatePatterns(zoneMaps, template, seed) {
+    const r = rng(seed), w = template.width;
+    const cells = template.cells.map(c => ({ ...c })), n = cells.length, outer = outerRegion(cells, w);
+    const interior = []; cells.forEach((c, i) => { if (c.active && !outer[i]) interior.push(i); });
+    const exits = interior.filter(i => cells[i].movement && (neigh(i, w, n).length < 4 || neigh(i, w, n).some(j => !cells[j].active)));
+    const keep = [...exits, ...(template.scriptedCells || []), ...(template.npcCells || [])].filter(i => i >= 0 && i < n);
+    const mustWalk = new Set(keep.flatMap(i => [i, ...neigh(i, w, n)]).filter(i => !outer[i]));
+
+    const M = learn(zoneMaps), { idx, all } = buildIndex([...zoneMaps, template]);
+    const target = M.blockRatio * (0.85 + r() * 0.3);
+    let blocked = 0, done = 0, levelsUsed = new Array(LEVELS.length + 1).fill(0);
+
+    for (const i of interior) {
+      const nb = around(cells, i, w);
+      const ratio = done ? blocked / done : 0;
+      // densidad: si vamos pasados de obstáculos, solo caminables; si vamos cortos, se permite todo
+      const wantWalk = mustWalk.has(i) || ratio > target * 1.25;
+      // si vamos cortos de obstáculos, preferir un candidato bloqueado… pero solo si encaja con el entorno
+      const wantBlock = !wantWalk && ratio < target * 0.8 && r() < 0.6;
+      let chosen = null;
+      for (let k = 0; k < LEVELS.length && !chosen; k++) {
+        let cand = idx[k].get(keyOf(nb, LEVELS[k]));
+        if (!cand) continue;
+        if (wantWalk) cand = cand.filter(c => c.movement);
+        else if (wantBlock && k <= 2) { const b = cand.filter(c => !c.movement); if (b.length) cand = b; }
+        if (cand.length) { chosen = cand[(r() * cand.length) | 0]; levelsUsed[k]++; }
+      }
+      if (!chosen) { const pool = wantWalk || !all.block.length ? all.walk : (r() < M.blockRatio ? all.block : all.walk); chosen = pool[(r() * pool.length) | 0]; levelsUsed[LEVELS.length]++; }
+      if (chosen) for (const f of COPY) cells[i][f] = chosen[f];
+      if (!cells[i].movement) blocked++;
+      done++;
+    }
+
+    // reparar zonas aisladas: abrir paso desde cada una hasta la principal por el camino más corto
+    const carved = repairConnectivity(cells, w, interior, keep, outer, M);
+
+    const pos = root.MapCodec.cellPositions(cells, w), ang = r() * Math.PI * 2, dx = Math.cos(ang), dy = Math.sin(ang);
+    const free = interior.filter(i => cells[i].movement && !mustWalk.has(i)).sort((a, b) => (pos[a].x * dx + pos[a].y * dy) - (pos[b].x * dx + pos[b].y * dy));
+    const kk = Math.min(8, Math.floor(free.length / 3));
+    const places = [free.slice(0, kk), free.slice(free.length - kk)];
+    const obstacles = interior.filter(i => !cells[i].movement).length;
+    return { cells, places, stats: { zoneMaps: zoneMaps.length, obstacles, interior: interior.length, exits: keep.length, carved, levelsUsed } };
+  }
+
+  function repairConnectivity(cells, w, interior, keep, outer, M) {
+    const n = cells.length, walkable = i => cells[i].active && cells[i].movement;
+    const comps = [], compOf = new Int32Array(n).fill(-1);
+    for (const s of interior) {
+      if (!walkable(s) || compOf[s] >= 0) continue;
+      const id = comps.length, list = [s]; compOf[s] = id;
+      for (let q = 0; q < list.length; q++) for (const j of neigh(list[q], w, n)) if (compOf[j] < 0 && walkable(j) && !outer[j]) { compOf[j] = id; list.push(j); }
+      comps.push(list);
+    }
+    if (comps.length < 2) return 0;
+    const keepComp = keep.map(i => compOf[i]).find(c => c >= 0);
+    const main = keepComp !== undefined ? keepComp : comps.reduce((b, c, k) => c.length > comps[b].length ? k : b, 0);
+    const walkGround = [...M.gWalk.entries()].sort((a, b) => b[1] - a[1])[0];
+    let carved = 0;
+    for (let k = 0; k < comps.length; k++) {
+      if (k === main) continue;
+      // BFS por el interior desde la componente aislada hasta cualquier celda de la principal
+      const prev = new Int32Array(n).fill(-2), queue = [...comps[k]];
+      comps[k].forEach(i => prev[i] = -1);
+      let hit = -1;
+      for (let q = 0; q < queue.length && hit < 0; q++)
+        for (const j of neigh(queue[q], w, n)) {
+          if (prev[j] !== -2 || outer[j] || !cells[j].active) continue;
+          prev[j] = queue[q];
+          if (compOf[j] === main) { hit = j; break; }
+          queue.push(j);
+        }
+      for (let c = hit >= 0 ? prev[hit] : -1; c >= 0 && prev[c] !== -1; c = prev[c]) {
+        const cell = cells[c];
+        if (cell.movement) continue;
+        const nbWalk = neigh(c, w, n).map(j => cells[j]).find(x => x && x.active && x.movement);
+        Object.assign(cell, { movement: 4, lineOfSight: true, layerObject2Num: 0, layerObject2Flip: false,
+          layerGroundNum: nbWalk ? nbWalk.layerGroundNum : (walkGround ? walkGround[0] : cell.layerGroundNum) });
+        carved++;
+      }
+      comps[k].forEach(i => compOf[i] = main);
+    }
+    return carved;
+  }
+
+  root.MapGenerator = { generate, generatePatterns, learn, outerRegion };
 })(typeof window !== 'undefined' ? window : globalThis);

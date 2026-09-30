@@ -32,6 +32,7 @@
   </span>
   <span class="gen">
     <button id="btnGen" title="Nueva variante: conserva muros y salidas, rehace el interior con lo aprendido de los mapas de la zona">Generar variante</button>
+    <select id="genAlgo" title="Algoritmo del generador"><option value="patterns">Patrones</option><option value="classic">Clásico</option></select>
     <input id="genSeed" type="number" value="1" min="1" title="Semilla (misma semilla = mismo resultado)">
     <button id="btnGenNext" title="Otra semilla">↻</button>
   </span>
@@ -75,6 +76,16 @@
         <select id="paletteCat" title="Categoría"></select>
         <input id="tileSearch" placeholder="Nº de tile" class="grow">
       </div>
+      <div class="row btns" id="favTools" hidden>
+        <button id="favRename" title="Cambiar el nombre del grupo">Renombrar</button>
+        <button id="favDelete" title="Borrar el grupo (los tiles no se borran)">Borrar grupo</button>
+      </div>
+      <div class="row btns">
+        <button id="favNew" title="Crear un grupo de favoritos">+ Grupo</button>
+        <button id="favExport" title="Guardar tus grupos de favoritos en un archivo para compartirlos">Exportar favoritos</button>
+        <button id="favImport" title="Cargar grupos de favoritos desde un archivo">Importar</button>
+        <input type="file" id="favFile" accept=".json" hidden>
+      </div>
       <div id="palette"></div>
     </div>
     <div id="exitPanel" class="panel" hidden>
@@ -112,6 +123,7 @@
     </div>
   </aside>
 </main>
+<div id="ctxMenu" hidden></div>
 <dialog id="exportDlg">
   <h3>Exportar al juego</h3>
   <div id="exportReport"></div>

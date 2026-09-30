@@ -589,7 +589,32 @@
     return true;
   }
 
-  // ---------------------------------------------------------------- favoritos / recientes
+  // ---------------------------------------------------------------- favoritos (grupos) / recientes
+  function favGroups() {
+    let g = loadList('favgroups');
+    if (!g.length) { const old = loadList('fav'); g = [{ name: 'General', items: old }]; saveList('favgroups', g); }
+    return g;
+  }
+  const saveGroups = g => saveList('favgroups', g);
+  function toggleInGroup(gi, key) {
+    const g = favGroups(), it = g[gi].items, k = it.indexOf(key);
+    k >= 0 ? it.splice(k, 1) : it.push(key); saveGroups(g); buildPalette();
+    status(k >= 0 ? `Quitado de «${g[gi].name}».` : `Añadido a «${g[gi].name}».`);
+  }
+  function newGroup(firstKey) {
+    const name = prompt('Nombre del grupo de favoritos:', 'Mi grupo'); if (!name) return;
+    const g = favGroups(); g.push({ name, items: firstKey ? [firstKey] : [] }); saveGroups(g);
+    fillCategories(); $('#paletteCat').value = 'fg:' + (g.length - 1); buildPalette();
+  }
+  function showTileMenu(x, y, key) {
+    const g = favGroups(), m = $('#ctxMenu');
+    m.innerHTML = `<div class="t">Tile ${key.slice(1)} · favoritos</div>`
+      + g.map((gr, i) => `<div data-g="${i}">${gr.items.includes(key) ? '✓' : '\u2003'} ${gr.name}</div>`).join('')
+      + '<div data-new="1">+ Nuevo grupo…</div>';
+    m.style.left = Math.min(x, innerWidth - 220) + 'px'; m.style.top = Math.max(0, Math.min(y, innerHeight - 70 - 30 * g.length)) + 'px'; m.hidden = false;
+    m.onclick = e => { const d = e.target.closest('div'); if (!d || d.classList.contains('t')) return; m.hidden = true; d.dataset.new ? newGroup(key) : toggleInGroup(+d.dataset.g, key); };
+  }
+  document.addEventListener('mousedown', e => { if (!e.target.closest('#ctxMenu')) $('#ctxMenu').hidden = true; });
   function loadList(k) { try { return JSON.parse(localStorage.getItem('mapeditor.' + k)) || []; } catch (e) { return []; } }
   function saveList(k, v) { try { localStorage.setItem('mapeditor.' + k, JSON.stringify(v)); } catch (e) {} }
 
@@ -618,7 +643,11 @@
   };
   function fillCategories() {
     const kind = $('#paintLayer').value === 'g' ? 'g' : 'o', sel = $('#paletteCat'), prev = sel.value;
-    sel.innerHTML = CATS[kind].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    const groups = favGroups().map((g, i) => ['fg:' + i, '★ ' + g.name]);
+    const opts = CATS[kind].flatMap(e => e[0] === 'fav' ? groups : [e]);
+    sel.innerHTML = opts.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+    if (opts.some(([v]) => v === prev)) sel.value = prev;
+    return;
     if (CATS[kind].some(([v]) => v === prev)) sel.value = prev;
   }
   /** Tiles usados en los mapas de la zona del mapa actual (y en el propio mapa). */
@@ -637,20 +666,23 @@
   }
   async function buildPalette() {
     const kind = $('#paintLayer').value === 'g' ? 'g' : 'o', cat = $('#paletteCat').value || 'all', q = $('#tileSearch').value.trim();
-    const stats = (S.stats && S.stats[kind]) || {}, favs = new Set(loadList('fav')), rec = loadList('recent');
+    const stats = (S.stats && S.stats[kind]) || {}, rec = loadList('recent'), groups = favGroups();
+    const favs = new Set(groups.flatMap(g => g.items)), group = cat.startsWith('fg:') ? groups[+cat.slice(3)] : null;
+    $('#favTools').hidden = !group;
     let nums;
     if (cat === 'zone') {
       if (!S.map) { $('#palette').innerHTML = '<p>Carga un mapa para ver los tiles de su zona.</p>'; return; }
       if (!S.zoneTiles) { $('#palette').innerHTML = '<p>Buscando los tiles de la zona…</p>'; await loadZoneTiles(); }
       nums = [...S.zoneTiles[kind].entries()].sort((a, b) => b[1] - a[1]).map(([n]) => String(n)).filter(n => S.index[kind][n]);
-    } else if (cat === 'recent') nums = rec.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
+    } else if (group) nums = group.items.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
+    else if (cat === 'recent') nums = rec.filter(k => k[0] === kind).map(k => k.slice(1)).filter(n => S.index[kind][n]);
     else {
-      nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (cat === 'fav' ? favs.has(kind + n) : (stats[n] || {}).cat === cat));
+      nums = Object.keys(S.index[kind]).filter(n => cat === 'all' || (stats[n] || {}).cat === cat);
       nums.sort((a, b) => ((stats[b] || {}).n || 0) - ((stats[a] || {}).n || 0) || a - b); // lo más usado primero
     }
     if (q) nums = nums.filter(n => n.startsWith(q));
     const total = nums.length; nums = nums.slice(0, 400);
-    $('#palette').innerHTML = nums.map(n => `<div class="tile${S.tile && S.tile.kind === kind && S.tile.num === +n ? ' sel' : ''}" data-kind="${kind}" data-num="${n}" title="Tile ${n} · usado ${(stats[n] || {}).n || 0} veces · clic derecho: favorito">`
+    $('#palette').innerHTML = nums.map(n => `<div class="tile${S.tile && S.tile.kind === kind && S.tile.num === +n ? ' sel' : ''}" data-kind="${kind}" data-num="${n}"${group ? ' draggable="true"' : ''} title="Tile ${n} · usado ${(stats[n] || {}).n || 0} veces · clic derecho: favoritos${group ? ' · arrastra para ordenar' : ''}">`
       + `${favs.has(kind + n) ? '<span class="fav">★</span>' : ''}<img loading="lazy" src="/assets/${kind}/${n}.svg"><small class="n">${n}</small></div>`).join('')
       + (total > 400 ? `<p>Se muestran 400 de ${total}; filtra por número o categoría.</p>` : !total ? '<p>No hay tiles en esta categoría.</p>' : '');
   }
@@ -692,13 +724,14 @@
     const seed = +$('#genSeed').value || 1;
     pushHistory();
     const template = { width: S.map.width, cells: S.original.cells, scriptedCells: S.map.scriptedCells, npcCells: S.npcs.map(n => n.cellid) };
-    const g = window.MapGenerator.generate(S.zone.maps, template, seed);
+    const algo = $('#genAlgo').value;
+    const g = algo === 'classic' ? window.MapGenerator.generate(S.zone.maps, template, seed) : window.MapGenerator.generatePatterns(S.zone.maps, template, seed);
     S.cells = g.cells; S.pos = C.cellPositions(S.cells, S.map.width);
     S.places = [new Set(g.places[0]), new Set(g.places[1])];
     S.generated = true; S.dirty = true; S.sel = null; showSelection();
     $('#btnSave').disabled = true; // guardaría las casillas sobre el mapa original
     render();
-    status(`Variante semilla ${seed} de ${S.map.id} · aprendido de ${g.stats.zoneMaps} mapas (${S.zone.zone}) · ${g.stats.obstacles} obstáculos · ${g.stats.exits} accesos protegidos. Exportar como mapa nuevo: fase 3.`);
+    status(`Variante semilla ${seed} de ${S.map.id} · aprendido de ${g.stats.zoneMaps} mapas (${S.zone.zone}) · ${g.stats.obstacles} obstáculos · ${g.stats.exits} accesos protegidos${g.stats.carved ? ` · ${g.stats.carved} celdas abiertas para unir zonas` : ''} (${algo === 'classic' ? 'clásico' : 'patrones'}). Exportar como mapa nuevo: fase 3.`);
   }
 
   async function save() {
@@ -720,9 +753,50 @@
   $('#paintTools').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setTool(b.dataset.tool); });
   $('#palette').addEventListener('contextmenu', e => {
     const t = e.target.closest('.tile'); if (!t) return; e.preventDefault();
-    const k = t.dataset.kind + t.dataset.num, favs = loadList('fav'), on = favs.includes(k);
-    saveList('fav', on ? favs.filter(x => x !== k) : [...favs, k]); buildPalette();
-    status(on ? `Tile ${t.dataset.num} quitado de favoritos.` : `Tile ${t.dataset.num} añadido a favoritos.`);
+    showTileMenu(e.clientX, e.clientY, t.dataset.kind + t.dataset.num);
+  });
+  // ordenar dentro de un grupo arrastrando
+  let dragKey = null;
+  $('#palette').addEventListener('dragstart', e => { const t = e.target.closest('.tile'); if (t) { dragKey = t.dataset.kind + t.dataset.num; e.dataTransfer.effectAllowed = 'move'; } });
+  $('#palette').addEventListener('dragover', e => {
+    const t = e.target.closest('.tile'); if (!t || !dragKey) return; e.preventDefault();
+    document.querySelectorAll('.tile.dragover').forEach(x => x.classList.remove('dragover')); t.classList.add('dragover');
+  });
+  $('#palette').addEventListener('drop', e => {
+    const t = e.target.closest('.tile'), cat = $('#paletteCat').value; if (!t || !dragKey || !cat.startsWith('fg:')) return; e.preventDefault();
+    const g = favGroups(), it = g[+cat.slice(3)].items, to = t.dataset.kind + t.dataset.num, from = it.indexOf(dragKey);
+    if (from < 0 || dragKey === to) return;
+    it.splice(from, 1); it.splice(it.indexOf(to), 0, dragKey); saveGroups(g); dragKey = null; buildPalette();
+  });
+  $('#palette').addEventListener('dragend', () => { dragKey = null; document.querySelectorAll('.tile.dragover').forEach(x => x.classList.remove('dragover')); });
+  $('#favNew').addEventListener('click', () => newGroup());
+  $('#favRename').addEventListener('click', () => {
+    const cat = $('#paletteCat').value; if (!cat.startsWith('fg:')) return;
+    const g = favGroups(), gr = g[+cat.slice(3)], name = prompt('Nuevo nombre:', gr.name); if (!name) return;
+    gr.name = name; saveGroups(g); fillCategories(); $('#paletteCat').value = cat; buildPalette();
+  });
+  $('#favDelete').addEventListener('click', () => {
+    const cat = $('#paletteCat').value; if (!cat.startsWith('fg:')) return;
+    const g = favGroups(), i = +cat.slice(3);
+    if (!confirm(`¿Borrar el grupo «${g[i].name}»? (${g[i].items.length} tiles; los tiles no se borran)`)) return;
+    g.splice(i, 1); saveGroups(g.length ? g : [{ name: 'General', items: [] }]); fillCategories(); $('#paletteCat').value = 'all'; buildPalette();
+  });
+  $('#favExport').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ format: 'dofus-favs/1', groups: favGroups() }, null, 1)], { type: 'application/json' }));
+    a.download = 'favoritos.dfav.json'; a.click(); URL.revokeObjectURL(a.href);
+    status('Favoritos guardados en descargas (favoritos.dfav.json).');
+  });
+  $('#favImport').addEventListener('click', () => $('#favFile').click());
+  $('#favFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text()); if (j.format !== 'dofus-favs/1') throw new Error('no es un archivo de favoritos');
+      const g = favGroups();
+      for (const ng of j.groups) { const ex = g.find(x => x.name === ng.name); if (ex) ex.items = [...new Set([...ex.items, ...ng.items])]; else g.push({ name: ng.name, items: ng.items }); }
+      saveGroups(g); fillCategories(); buildPalette();
+      status(`Importados ${j.groups.length} grupos de favoritos (los de igual nombre se fusionan).`);
+    } catch (err) { status('Error al importar: ' + err.message); }
   });
   $('#tileSearch').addEventListener('input', buildPalette);
   $('#npcSearch').addEventListener('input', buildNpcList);
