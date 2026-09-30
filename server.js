@@ -31,7 +31,21 @@ function packSource() {
     },
     async getMap(id) {
       const m = byId.get(id); if (!m) return null;
-      return { ...decodeRow(m), date: m.date, dungeon: m.dungeon, npcs: pack.npcs[id] || [], scriptedCells: pack.scripted[id] || [] };
+      // pack nuevo: [celda, acción, evento, args]; pack antiguo: solo celdas
+      const rows = (pack.scripted[id] || []).map(s => Array.isArray(s) ? { cell: s[0], action: s[1], event: s[2], args: s[3] } : { cell: s, action: -1 });
+      const { exits, other } = parseExits(rows);
+      return { ...decodeRow(m), date: m.date, dungeon: m.dungeon, npcs: pack.npcs[id] || [],
+               meta: { mappos: m.mappos, bgID: m.bgID | 0, musicID: m.musicID | 0, ambianceID: m.ambianceID | 0, outDoor: m.outDoor | 0, capabilities: m.capabilities | 0 },
+               scriptedCells: [...new Set(rows.map(r => r.cell))], exits, otherActions: other };
+    },
+    async neighbors(id, pos) {
+      const m = pos ? { mappos: pos } : byId.get(id); if (!m) return null;
+      const [x, y, sub] = String(m.mappos || '').split(',').map(Number), out = {};
+      for (const [side, dx, dy] of [['top', 0, -1], ['bottom', 0, 1], ['left', -1, 0], ['right', 1, 0]])
+        out[side] = pack.maps.filter(r => r.id !== id && String(r.mappos || '').startsWith(`${x + dx},${y + dy},`))
+          .map(r => ({ id: r.id, width: r.width, height: r.height, subarea: +String(r.mappos).split(',')[2] }))
+          .sort((a, b) => (b.subarea === sub) - (a.subarea === sub) || a.id - b.id);
+      return out;
     },
     async zoneOf(id) {
       const m = byId.get(id); if (!m) return null;
@@ -43,6 +57,28 @@ function packSource() {
     async saveServerSide() { throw new Error('Modo sin conexión: guarda el mapa como archivo y pásaselo a quien tenga el servidor.'); },
     async exportMap() { throw new Error('Modo sin conexión: guarda el mapa como archivo; la exportación al juego se hace en el PC del servidor.'); },
   };
+}
+
+/** Salidas = celdas con acción 0 (teletransporte) al pisar (evento 1), argumentos "mapa,celda". */
+function parseExits(rows) {
+  const exits = [], other = [];
+  for (const r of rows) {
+    const [map, cell] = String(r.args || '').split(',').map(Number);
+    if (r.action === 0 && r.event === 1 && map) exits.push({ cell: r.cell, map, destCell: cell | 0 });
+    else other.push({ cell: r.cell, action: r.action, args: r.args });
+  }
+  return { exits, other };
+}
+
+async function saveExits(db, id, exits, reverse) {
+  if (!exits) return;
+  await db.query('DELETE FROM scripted_cells WHERE MapID = ? AND ActionID = 0 AND EventID = 1', [id]);
+  for (const e of exits)
+    await db.query('INSERT INTO scripted_cells (MapID, CellID, ActionID, EventID, ActionsArgs, Conditions) VALUES (?, ?, 0, 1, ?, \'-1\')', [id, e.cell, e.map + ',' + e.destCell]);
+  for (const r of reverse || []) { // la vuelta, en el mapa vecino
+    await db.query('DELETE FROM scripted_cells WHERE MapID = ? AND CellID = ? AND ActionID = 0 AND EventID = 1', [r.map, r.cell]);
+    await db.query('INSERT INTO scripted_cells (MapID, CellID, ActionID, EventID, ActionsArgs, Conditions) VALUES (?, ?, 0, 1, ?, \'-1\')', [r.map, r.cell, id + ',' + r.destCell]);
+  }
 }
 
 function dbSource(db) {
@@ -58,9 +94,25 @@ function dbSource(db) {
       if (!m) return null;
       m.meta = { mappos: m.mappos, bgID: m.bgID, musicID: m.musicID, ambianceID: m.ambianceID, outDoor: m.outDoor, capabilities: m.capabilities };
       const [npcs] = await db.query('SELECT npcid, cellid, orientation FROM npcs WHERE mapid = ?', [id]);
-      const [scripted] = await db.query('SELECT DISTINCT CellID AS cell FROM scripted_cells WHERE MapID = ?', [id]).catch(() => [[]]);
+      const [scripted] = await db.query('SELECT CellID AS cell, ActionID AS action, EventID AS event, ActionsArgs AS args FROM scripted_cells WHERE MapID = ?', [id]).catch(() => [[]]);
       const [[dg]] = await db.query('SELECT dungeon FROM dream_dungeon_maps WHERE map_id = ?', [id]).catch(() => [[null]]);
-      return { ...decodeRow(m), date: m.date, meta: m.meta, dungeon: dg ? dg.dungeon : null, npcs, scriptedCells: scripted.map(s => s.cell) };
+      const { exits, other } = parseExits(scripted);
+      return { ...decodeRow(m), date: m.date, meta: m.meta, dungeon: dg ? dg.dungeon : null, npcs,
+               scriptedCells: [...new Set(scripted.map(s => s.cell))], exits, otherActions: other };
+    },
+    /** Mapas vecinos por coordenadas del mundo (mappos x,y): arriba y-1, abajo y+1, izquierda x-1, derecha x+1. */
+    async neighbors(id, pos) {
+      let m = pos ? { mappos: pos } : null;
+      if (!m) [[m]] = await db.query('SELECT mappos FROM maps WHERE id = ?', [id]);
+      if (!m) return null;
+      const [x, y, sub] = String(m.mappos || '').split(',').map(Number);
+      const out = {};
+      for (const [side, dx, dy] of [['top', 0, -1], ['bottom', 0, 1], ['left', -1, 0], ['right', 1, 0]]) {
+        const [rows] = await db.query("SELECT id, width, heigth AS height, mappos FROM maps WHERE mappos LIKE ? AND id <> ?", [`${x + dx},${y + dy},%`, id]);
+        out[side] = rows.map(r => ({ id: r.id, width: r.width, height: r.height, subarea: +String(r.mappos).split(',')[2] }))
+          .sort((a, b) => (b.subarea === sub) - (a.subarea === sub) || a.id - b.id);
+      }
+      return out;
     },
     /**
      * Exporta al juego: SWF del mapa (sin cifrar) en la carpeta del cliente + fila de la base (mapData, clave vacía,
@@ -99,7 +151,9 @@ function dbSource(db) {
       await db.query('DELETE FROM npcs WHERE mapid = ?', [id]);
       for (const n of body.npcs || [])
         await db.query('INSERT INTO npcs (mapid, npcid, cellid, orientation, isMovable) VALUES (?, ?, ?, ?, 0)', [id, n.npcid, n.cellid, n.orientation | 0]);
-      return { ok: true, id, date, isNew, file: path.basename(file), reload: 'RECARGARMAPA ' + id };
+      await saveExits(db, id, body.exits, body.reverse);
+      const touched = [...new Set((body.reverse || []).map(r => r.map))];
+      return { ok: true, id, date, isNew, file: path.basename(file), reload: 'RECARGARMAPA ' + id, alsoReload: touched };
     },
     async zoneOf(id) {
       const [[m]] = await db.query('SELECT id, width, heigth AS height, mappos FROM maps WHERE id = ?', [id]);
@@ -120,7 +174,8 @@ function dbSource(db) {
       await db.query('DELETE FROM npcs WHERE mapid = ?', [id]);
       for (const n of body.npcs || [])
         await db.query('INSERT INTO npcs (mapid, npcid, cellid, orientation, isMovable) VALUES (?, ?, ?, ?, 0)', [id, n.npcid, n.cellid, n.orientation | 0]);
-      return { ok: true, places };
+      await saveExits(db, id, body.exits, body.reverse);
+      return { ok: true, places, alsoReload: [...new Set((body.reverse || []).map(r => r.map))] };
     },
   };
 }
@@ -167,6 +222,7 @@ openSource().then(src => {
       }
       if (p === '/api/maps') return send(res, 200, await src.listMaps(url.searchParams.get('q') || ''));
       if (p === '/api/npcs') return send(res, 200, await src.npcTemplates());
+      if ((m = p.match(/^\/api\/neighbors\/(\d+)$/))) { const n = await src.neighbors(+m[1], url.searchParams.get('pos')); return n ? send(res, 200, n) : send(res, 404, { error: 'mapa no encontrado' }); }
       if ((m = p.match(/^\/api\/zone\/(\d+)$/))) { const z = await src.zoneOf(+m[1]); return z ? send(res, 200, z) : send(res, 404, { error: 'mapa no encontrado' }); }
       if ((m = p.match(/^\/api\/map\/(\d+)$/))) {
         if (req.method === 'GET') { const map = await src.getMap(+m[1]); return map ? send(res, 200, map) : send(res, 404, { error: 'mapa no encontrado' }); }

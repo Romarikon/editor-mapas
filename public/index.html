@@ -20,9 +20,11 @@
     <button data-mode="paint" title="Pintar tiles (clic: poner · clic derecho: quitar)">Decorado</button>
     <button data-mode="cells" title="Clic: caminable sí/no · Mayús+clic: línea de visión · Alt+clic: subir altura · Alt+clic derecho: bajar">Celdas</button>
     <button data-mode="fight" title="Clic: equipo rojo · Mayús+clic: equipo azul · clic derecho: quitar">Combate</button>
+    <button data-mode="exits" title="Salidas a otros mapas · clic: definir destino · clic derecho: quitar">Salidas</button>
     <button data-mode="npc" title="Clic: colocar NPC · clic derecho: quitar">NPC</button>
   </span>
   <span class="layers">
+    <label><input type="checkbox" id="lyBg" checked> Fondo</label>
     <label><input type="checkbox" id="lyG" checked> Suelo</label>
     <label><input type="checkbox" id="lyO1" checked> Objetos 1</label>
     <label><input type="checkbox" id="lyO2" checked> Objetos 2</label>
@@ -60,6 +62,12 @@
       </div>
       <input id="tileSearch" placeholder="Filtrar por número de tile">
       <div id="palette"></div>
+    </div>
+    <div id="exitPanel" class="panel" hidden>
+      <p>Clic en una celda: definir a qué mapa y celda lleva. Clic derecho: quitar la salida. Se guardan con "Guardar en servidor" o al exportar, y se activan con <code>RECARGARMAPA</code>.</p>
+      <div class="row btns"><button id="btnAutoLink" title="Busca los mapas vecinos por coordenadas del mundo y crea una salida por lado">Enlazar bordes automáticamente</button></div>
+      <label class="check pad"><input type="checkbox" id="linkReverse" checked> Crear también la vuelta en el mapa vecino</label>
+      <div id="exitList"></div>
     </div>
     <div id="npcPanel" class="panel" hidden>
       <input id="npcSearch" placeholder="Filtrar plantilla de NPC (id)">

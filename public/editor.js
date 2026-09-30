@@ -37,6 +37,8 @@
     S.map = m; S.cells = m.cells; S.pos = C.cellPositions(m.cells, m.width);
     S.places = [new Set(m.places[0]), new Set(m.places[1])];
     S.npcs = (m.npcs || []).map(n => ({ npcid: n.npcid, cellid: n.cellid, orientation: n.orientation }));
+    S.exits = (m.exits || []).map(e => ({ cell: e.cell, map: e.map, destCell: e.destCell }));
+    S.reverse = [];
     S.dirty = !fromServer; S.sel = null; showSelection();
     S.original = { cells: m.cells.map(c => ({ ...c })), places: m.places };
     S.generated = !fromServer; S.zone = null;
@@ -52,6 +54,58 @@
     const m = await api('/api/map/' + id);
     useMap(m, true);
     status(`Mapa ${id} ${m.dungeon ? '· ' + m.dungeon : ''} · ${m.width}×${m.height} · ${S.places[0].size}/${S.places[1].size} casillas de combate · ${S.npcs.length} NPC`);
+  }
+
+  // ---------------------------------------------------------------- salidas entre mapas
+  function renderExitList() {
+    const rev = S.reverse.length ? `<p class="pad">Pendiente de guardar: ${S.reverse.length} vuelta(s) en mapas vecinos.</p>` : '';
+    $('#exitList').innerHTML = rev + (S.exits.length ? S.exits.map(e =>
+      `<div class="exitItem"><span>celda ${e.cell} → mapa <b>${e.map}</b>, celda ${e.destCell}</span><button data-cell="${e.cell}" title="Quitar">✕</button></div>`).join('')
+      : '<p class="pad">Este mapa no tiene salidas.</p>');
+  }
+
+  /** Celda caminable más cercana a un punto (en píxeles del mapa), opcionalmente filtrada. */
+  function nearestCell(cells, pos, x, y, filter = () => true) {
+    let best = -1, bd = Infinity;
+    cells.forEach((c, i) => { if (!c.active || !c.movement || !filter(i)) return; const d = (pos[i].x - x) ** 2 + (pos[i].y - y) ** 2; if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  const bounds = pos => ({ minX: Math.min(...pos.map(p => p.x)), maxX: Math.max(...pos.map(p => p.x)), minY: Math.min(...pos.map(p => p.y)), maxY: Math.max(...pos.map(p => p.y)) });
+  // punto de salida (borde) y de llegada (un poco hacia dentro) de cada lado
+  const SIDE = {
+    top: b => ({ edge: [(b.minX + b.maxX) / 2, b.minY], inside: [(b.minX + b.maxX) / 2, b.minY + 30] }),
+    bottom: b => ({ edge: [(b.minX + b.maxX) / 2, b.maxY], inside: [(b.minX + b.maxX) / 2, b.maxY - 30] }),
+    left: b => ({ edge: [b.minX, (b.minY + b.maxY) / 2], inside: [b.minX + 55, (b.minY + b.maxY) / 2] }),
+    right: b => ({ edge: [b.maxX, (b.minY + b.maxY) / 2], inside: [b.maxX - 55, (b.minY + b.maxY) / 2] }),
+  };
+  const OPPOSITE = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+
+  async function autoLink() {
+    if (!S.map) return;
+    const pos = readMeta().mappos;
+    const nb = await api(`/api/neighbors/${S.map.id || 0}?pos=${encodeURIComponent(pos)}`);
+    const mine = bounds(S.pos), made = [];
+    S.reverse = [];
+    for (const side of ['top', 'bottom', 'left', 'right']) {
+      const n = (nb[side] || [])[0];
+      if (!n) continue;
+      const other = await api('/api/map/' + n.id);
+      const opos = C.cellPositions(other.cells, other.width), ob = bounds(opos);
+      const me = SIDE[side](mine), them = SIDE[OPPOSITE[side]](ob);
+      const exitCell = S.exits.find(e => e.map === n.id)?.cell ?? nearestCell(S.cells, S.pos, ...me.edge);
+      const arrive = nearestCell(other.cells, opos, ...them.inside);
+      if (exitCell < 0 || arrive < 0) continue;
+      S.exits = S.exits.filter(e => e.cell !== exitCell && e.map !== n.id);
+      S.exits.push({ cell: exitCell, map: n.id, destCell: arrive });
+      if ($('#linkReverse').checked) {
+        const theirExit = (other.exits || []).find(e => e.map === S.map.id)?.cell ?? nearestCell(other.cells, opos, ...them.edge);
+        const myArrive = nearestCell(S.cells, S.pos, ...me.inside, i => i !== exitCell);
+        if (theirExit >= 0 && myArrive >= 0) S.reverse.push({ map: n.id, cell: theirExit, destCell: myArrive });
+      }
+      made.push(`${side === 'top' ? 'arriba' : side === 'bottom' ? 'abajo' : side === 'left' ? 'izquierda' : 'derecha'} → ${n.id}`);
+    }
+    S.dirty = true; renderExitList(); render();
+    status(made.length ? `Enlazado: ${made.join(', ')}. Guarda o exporta para aplicarlo.` : `No hay mapas vecinos en las coordenadas ${pos} (cámbialas en "Datos del mapa").`);
   }
 
   // ---------------------------------------------------------------- datos del mapa
@@ -129,13 +183,14 @@
     $('#exportDlg').close();
     status('Exportando…');
     const body = { id: asNew ? null : S.map.id, width: S.map.width, height: S.map.height, cells: S.cells,
-                   places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs, meta: readMeta() };
+                   places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs, meta: readMeta(), exits: S.exits, reverse: S.reverse };
     const r = await api('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     S.map.id = r.id; S.map.date = r.date; S.map.meta = body.meta;
-    S.generated = false; S.dirty = false; $('#btnSave').disabled = false;
+    S.generated = false; S.dirty = false; S.reverse = []; renderExitList(); $('#btnSave').disabled = false;
     await loadMapList($('#mapSearch').value.trim());
-    status(`${r.isNew ? 'Mapa nuevo ' + r.id + ' creado' : 'Mapa ' + r.id + ' actualizado'} (${r.file}). En el juego: ${r.reload}`);
-    alert(`${r.isNew ? 'Creado el mapa nuevo ' + r.id : 'Actualizado el mapa ' + r.id}.\n\nFichero del cliente: ${r.file}\n\nPara verlo sin reiniciar, en la consola de administración:\n${r.reload}${r.isNew ? '\n\nPara ir a él: TP ' + r.id + ' <celda>' : ''}`);
+    const also = (r.alsoReload || []).map(id => 'RECARGARMAPA ' + id);
+    status(`${r.isNew ? 'Mapa nuevo ' + r.id + ' creado' : 'Mapa ' + r.id + ' actualizado'} (${r.file}). En el juego: ${[r.reload, ...also].join(', ')}`);
+    alert(`${r.isNew ? 'Creado el mapa nuevo ' + r.id : 'Actualizado el mapa ' + r.id}.\n\nFichero del cliente: ${r.file}\n\nPara verlo sin reiniciar, en la consola de administración:\n${[r.reload, ...also].join('\n')}${r.isNew ? '\n\nPara ir a él: TP ' + r.id + ' <celda>' : ''}`);
   }
 
   // ---------------------------------------------------------------- mapa nuevo y archivos
@@ -161,7 +216,7 @@
     const name = prompt('Nombre del mapa:', S.map.name || (S.map.id ? 'mapa_' + S.map.id : 'nuevo_mapa'));
     if (!name) return;
     const file = { format: 'dofus-map/1', name, width: S.map.width, height: S.map.height, basedOn: S.map.id || null,
-      mapData: C.encodeCells(S.cells), places: C.encodePlaces([...S.places[0]], [...S.places[1]]), npcs: S.npcs, meta: readMeta(),
+      mapData: C.encodeCells(S.cells), places: C.encodePlaces([...S.places[0]], [...S.places[1]]), npcs: S.npcs, meta: readMeta(), exits: S.exits,
       savedAt: new Date().toISOString() };
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 1)], { type: 'application/json' }));
@@ -176,7 +231,7 @@
     const j = JSON.parse(await f.text());
     if (j.format !== 'dofus-map/1') { alert('No es un archivo de mapa de este editor.'); return; }
     useMap({ id: null, name: j.name, width: j.width, height: j.height, cells: C.decodeCells(j.mapData),
-             places: C.decodePlaces(j.places), npcs: j.npcs || [], scriptedCells: [], basedOn: j.basedOn, meta: j.meta }, false);
+             places: C.decodePlaces(j.places), npcs: j.npcs || [], scriptedCells: [], basedOn: j.basedOn, meta: j.meta, exits: j.exits || [] }, false);
     S.dirty = false;
     status(`Abierto "${j.name}" (${j.width}×${j.height})${j.basedOn ? ', basado en el mapa ' + j.basedOn : ''}.`);
   }
@@ -297,6 +352,10 @@
     ctx.setTransform(scale * dpr, 0, 0, scale * dpr, ox * dpr, oy * dpr);
     const cells = S.cells, pos = S.pos;
 
+    // fondo: es un símbolo del fichero de suelos colocado en el origen del mapa (MapHandler del cliente)
+    const bg = +$('#metaForm').bgID.value;
+    if (bg && $('#lyBg').checked) drawTile('g', bg, 0, 0, 0, false);
+
     if ($('#lyG').checked)
       cells.forEach((c, i) => c.active && drawTile('g', c.layerGroundNum, pos[i].x, pos[i].y,
         c.groundSlope === 1 ? c.layerGroundRot : 0, c.layerGroundFlip, c.groundSlope !== 1 ? c.groundSlope : 0));
@@ -323,6 +382,16 @@
         if (team >= 0) { diamond(x, y); ctx.fillStyle = team ? 'rgba(74,143,224,.55)' : 'rgba(224,85,69,.55)'; ctx.fill(); }
       }
     });
+    if (S.mode === 'exits' || S.mode === 'view') {
+      for (const e of S.exits || []) {
+        const p = pos[e.cell]; if (!p) continue;
+        diamond(p.x, p.y); ctx.fillStyle = 'rgba(80,190,255,.55)'; ctx.fill();
+        if (S.mode === 'exits') {
+          ctx.fillStyle = '#0d2233'; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('→' + e.map, p.x, p.y + 3);
+        }
+      }
+    }
     for (const n of S.npcs) {
       const p = pos[n.cellid]; if (!p) continue;
       ctx.fillStyle = '#d8893c'; ctx.beginPath(); ctx.arc(p.x, p.y - 18, 7, 0, Math.PI * 2); ctx.fill();
@@ -372,6 +441,18 @@
         S.places[0].delete(i); S.places[1].delete(i);
         if (!erase) S.places[e.shiftKey ? 1 : 0].add(i);
         break;
+      case 'exits': {
+        const cur = S.exits.find(x => x.cell === i);
+        S.exits = S.exits.filter(x => x.cell !== i);
+        if (!erase) {
+          const txt = prompt(`Salida desde la celda ${i}. Destino "mapa,celda" (vacío = quitar):`, cur ? `${cur.map},${cur.destCell}` : '');
+          if (txt === null) { if (cur) S.exits.push(cur); return; }
+          const [mp, cl] = txt.split(/[,; ]+/).map(Number);
+          if (mp) S.exits.push({ cell: i, map: mp, destCell: cl | 0 });
+        }
+        renderExitList();
+        break;
+      }
       case 'npc':
         S.npcs = S.npcs.filter(n => n.cellid !== i);
         if (!erase && S.npcTemplate) S.npcs.push({ npcid: S.npcTemplate, cellid: i, orientation: 1 });
@@ -415,8 +496,10 @@
     document.querySelectorAll('#modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
     $('#paintPanel').hidden = mode !== 'paint';
     $('#npcPanel').hidden = mode !== 'npc';
+    $('#exitPanel').hidden = mode !== 'exits';
+    if (mode === 'exits') renderExitList();
     $('#selPanel').hidden = mode !== 'select';
-    $('#infoPanel').hidden = mode === 'paint' || mode === 'npc' || mode === 'select';
+    $('#infoPanel').hidden = ['paint', 'npc', 'select', 'exits'].includes(mode);
     if (mode !== 'select') { S.sel = null; showSelection(); }
     render();
   }
@@ -451,10 +534,11 @@
 
   async function save() {
     if (!S.map || S.generated) return;
-    const body = { places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs };
-    await api('/api/map/' + S.map.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    S.dirty = false;
-    status(`Mapa ${S.map.id} guardado: casillas de combate y NPC. Reinicia el servidor de juego para verlo.`);
+    const body = { places: [[...S.places[0]], [...S.places[1]]], npcs: S.npcs, exits: S.exits, reverse: S.reverse };
+    const r = await api('/api/map/' + S.map.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    S.dirty = false; S.reverse = []; renderExitList();
+    const also = (r.alsoReload || []).map(id => 'RECARGARMAPA ' + id).join(', ');
+    status(`Mapa ${S.map.id} guardado (casillas de combate, NPC y salidas). En el juego: RECARGARMAPA ${S.map.id}${also ? ' y ' + also : ''}.`);
   }
 
   // ---------------------------------------------------------------- eventos
@@ -518,11 +602,14 @@
     status(`Pintando con el tile ${S.tile.num} (${LAYER_NAMES[S.sel.layer]})`);
   });
   $('#btnNew').addEventListener('click', newMap);
+  $('#btnAutoLink').addEventListener('click', () => autoLink().catch(err => status('Error al enlazar: ' + err.message)));
+  $('#exitList').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.exits = S.exits.filter(x => x.cell !== +b.dataset.cell); S.dirty = true; renderExitList(); render(); });
+  $('#lyBg').addEventListener('change', render);
   $('#btnExport').addEventListener('click', openExport);
   $('#expOverwrite').addEventListener('click', () => doExport(false).catch(err => status('Error al exportar: ' + err.message)));
   $('#expNew').addEventListener('click', () => doExport(true).catch(err => status('Error al exportar: ' + err.message)));
   $('#expCancel').addEventListener('click', () => $('#exportDlg').close());
-  $('#metaForm').addEventListener('input', () => { S.dirty = true; });
+  $('#metaForm').addEventListener('input', () => { S.dirty = true; render(); });
   $('#btnFile').addEventListener('click', saveFile);
   $('#btnOpen').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) openFile(f).catch(err => status('Error al abrir: ' + err.message)); });

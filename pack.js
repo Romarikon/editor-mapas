@@ -11,14 +11,14 @@ const DIST = path.join(OUT, 'EditorMapas');
 
 async function dump() {
   const db = await mysql.createConnection({ host: '127.0.0.1', user: 'root', password: '', database: 'aegnor_game' });
-  const [maps] = await db.query('SELECT m.id, m.width, m.heigth AS height, m.mappos, m.date, m.`key`, m.mapData, m.places, d.dungeon FROM maps m LEFT JOIN dream_dungeon_maps d ON d.map_id = m.id WHERE m.mapData <> \'\'');
+  const [maps] = await db.query('SELECT m.id, m.width, m.heigth AS height, m.mappos, m.date, m.`key`, m.mapData, m.places, m.bgID, m.musicID, m.ambianceID, m.outDoor, m.capabilities, d.dungeon FROM maps m LEFT JOIN dream_dungeon_maps d ON d.map_id = m.id WHERE m.mapData <> \'\'');
   const [npcRows] = await db.query('SELECT mapid, npcid, cellid, orientation FROM npcs');
-  const [scriptedRows] = await db.query('SELECT DISTINCT MapID AS map, CellID AS cell FROM scripted_cells');
+  const [scriptedRows] = await db.query('SELECT MapID AS map, CellID AS cell, ActionID AS action, EventID AS event, ActionsArgs AS args FROM scripted_cells');
   const [npcTemplates] = await db.query('SELECT id, gfxID FROM npc_template ORDER BY id');
   await db.end();
   const npcs = {}, scripted = {};
   for (const n of npcRows) (npcs[n.mapid] ||= []).push({ npcid: n.npcid, cellid: n.cellid, orientation: n.orientation });
-  for (const s of scriptedRows) (scripted[s.map] ||= []).push(s.cell);
+  for (const s of scriptedRows) (scripted[s.map] ||= []).push([s.cell, s.action, s.event, s.args]);
   return { generatedAt: new Date().toISOString(), maps, npcs, scripted, npcTemplates };
 }
 

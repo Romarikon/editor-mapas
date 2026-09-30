@@ -51,3 +51,9 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 #exportReport ul { padding-left: 18px; line-height: 1.6; }
 #exportReport .err { color: #ff8a7a; } #exportReport .warn { color: #f0c060; } #exportReport .ok { color: #8fd49b; }
 .npcItem.sel, .npcItem:hover { background: #3a3120; }
+
+.pad { margin: 6px 12px; color: var(--soft); display: flex; gap: 6px; align-items: center; }
+#exitList { overflow: auto; padding: 0 8px 8px; }
+.exitItem { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 5px; }
+.exitItem:hover { background: #3a3120; }
+.exitItem button { padding: 2px 7px; }
