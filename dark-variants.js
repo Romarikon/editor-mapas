@@ -116,7 +116,10 @@ function addImports(shellFile, libs) {
   while (off < b.length) {
     const start = off, h = b.readUInt16LE(off); let code = h >> 6, len = h & 63; off += 2;
     if (len === 63) { len = b.readUInt32LE(off); off += 4; }
+    // el id nuevo debe ser mayor que TODOS los usados: importaciones (57), definiciones de sprite (39) y exportaciones (56)
     if (code === 57) { let p = off; p = b.indexOf(0, p) + 1; const cnt = b.readUInt16LE(p); p += 2; for (let i = 0; i < cnt; i++) { maxId = Math.max(maxId, b.readUInt16LE(p)); p = b.indexOf(0, p + 2) + 1; } }
+    if (code === 39) maxId = Math.max(maxId, b.readUInt16LE(off));
+    if (code === 56) { let p = off + 2; const cnt = b.readUInt16LE(off); for (let i = 0; i < cnt; i++) { maxId = Math.max(maxId, b.readUInt16LE(p)); p = b.indexOf(0, p + 2) + 1; } }
     if (code === 56 && insertAt < 0) insertAt = start; // antes del ExportAssets del cascarón
     off += len; if (code === 0) break;
   }
@@ -131,6 +134,16 @@ function addImports(shellFile, libs) {
 
 // ------------------------------------------------------------------ principal
 (async () => {
+  if (process.argv.includes('--shells-only')) { // reutiliza las bibliotecas ya generadas y solo rehace los cascarones
+    const libs = kind => fs.readdirSync(path.join(clips, 'gfx'))
+      .filter(f => f.startsWith(kind) && f.endsWith('.swf') && /^\d+$/.test(f.slice(1, -4)) && +f.slice(1, -4) >= FIRST_LIB[kind])
+      .sort((a, b) => a.slice(1, -4) - b.slice(1, -4))
+      .map(f => ({ file: f, link: '[Link_' + f.slice(0, -4) + '-' + (kind === 'o' ? 'objects' : 'ground') + ']' }));
+    addImports(path.join(clips, 'objects.swf'), libs('o'));
+    addImports(path.join(clips, 'ground.swf'), libs('g'));
+    console.log('cascarones rehechos:', libs('o').map(l => l.file).join(', '), '+', libs('g').map(l => l.file).join(', '));
+    return;
+  }
   const index = JSON.parse(fs.readFileSync(path.join(A, 'index.json')));
   const stats = JSON.parse(fs.readFileSync(path.join(A, 'tilestats.json')));
   const prevDark = fs.existsSync(path.join(A, 'dark.json')) ? JSON.parse(fs.readFileSync(path.join(A, 'dark.json'))) : { o: {}, g: {} };
